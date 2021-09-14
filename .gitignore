@@ -1,3 +1,7 @@
+experiments/*
+*.xls
+SpokenArabicDigits/*
+
 # Env and package
 .env
 .vscode
