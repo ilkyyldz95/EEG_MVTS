@@ -6,6 +6,7 @@ import os
 import time
 import pickle
 import matplotlib.pyplot as plt
+import pandas as pd
 
 Restore = True
 modality = "UPenn/upenn_extended"
@@ -71,23 +72,27 @@ for idx in range(len(train_eegs)):
         train_files_cleaned.append(train_files[idx])
 print("{} train eegs are cleaned".format(count))
 train_prep_eegs, train_files = apply_sliding_window(train_files_cleaned, train_eegs_cleaned)
-# make nested pandas data frame
-train_prep_eegs_df = pd.DataFrame(index=range(train_prep_eegs.shape[0]),
-                  columns=["dim_{}".format(ch) for ch in range(train_prep_eegs.shape[1])])
-for sample_idx in range(train_prep_eegs.shape[0]):
-    for ch_idx in range(train_prep_eegs.shape[1]):
-        train_prep_eegs_df.at[train_prep_eegs_df.index[sample_idx], train_prep_eegs_df.columns[ch_idx]] = \
-            train_prep_eegs[sample_idx, ch_idx]
-print(train_prep_eegs_df)
 
 # separate normal signals into train and test portions
 shuffled_idx = range(len(train_prep_eegs))
 train_idx = shuffled_idx[:int(len(shuffled_idx)*0.8)]
 test_idx = shuffled_idx[int(len(shuffled_idx)*0.8):]
-test_normal_prep_eegs, test_normal_imgs, test_normal_files = \
-    train_prep_eegs[test_idx], train_imgs[test_idx], train_files[test_idx]
-train_prep_eegs, train_imgs, train_files = \
-    train_prep_eegs[train_idx], train_imgs[train_idx], train_files[train_idx]
+test_normal_prep_eegs, test_normal_files = train_prep_eegs[test_idx], train_files[test_idx]
+train_prep_eegs, train_files = train_prep_eegs[train_idx], train_files[train_idx]
+
+# make nested pandas data frame
+IDs = [file + "_{}".format(idx) for idx, file in enumerate(train_files)]
+train_prep_eegs_df = pd.DataFrame(index=IDs,
+                  columns=["dim_{}".format(ch) for ch in range(train_prep_eegs.shape[1])])
+train_labels_df = pd.DataFrame(np.array([0] * len(train_files)), index=IDs, columns=["class_val"])
+for sample_idx in range(train_prep_eegs.shape[0]):
+    for ch_idx in range(train_prep_eegs.shape[1]):
+        train_prep_eegs_df.at[train_prep_eegs_df.index[sample_idx], train_prep_eegs_df.columns[ch_idx]] = \
+            pd.Series(train_prep_eegs[sample_idx, ch_idx])
+print(train_prep_eegs_df)
+print(train_labels_df)
+train_prep_eegs_df.to_pickle('{}_train_eegs_df.pickle'.format(modality))
+train_labels_df.to_pickle('{}_train_labels_df.pickle'.format(modality))
 
 # Load test EEG data
 with open('{}_seizure_eegs.pickle'.format(modality), 'rb') as handle:
@@ -107,6 +112,22 @@ for idx in range(len(test_seizure_eegs)):
 print("{} seizure eegs are cleaned".format(count))
 test_seizure_prep_eegs, test_seizure_files = \
     apply_sliding_window(test_seizure_files_cleaned, test_seizure_eegs_cleaned)
-test_seizure_imgs = np.array([(img - np.min(img)) / (np.max(img) - np.min(img))
-                      for img in test_seizure_prep_eegs])[:, np.newaxis, :, :]  # batch x 1 x channels x time points
-print("Number of test normal, seizure signals:", len(test_normal_imgs), len(test_seizure_imgs))  # 93301 5511
+
+# Concatenate positive and negative test samples
+all_test_prep_eegs = np.concatenate([test_normal_prep_eegs, test_seizure_prep_eegs])
+all_test_files = np.concatenate([test_normal_files, test_seizure_files])
+all_test_labels = np.array([0] * len(test_normal_files) + [1] * len(test_seizure_files))
+
+# make nested pandas data frame
+IDs = [file + "_{}".format(idx) for idx, file in enumerate(all_test_files)]
+test_prep_eegs_df = pd.DataFrame(index=IDs,
+                  columns=["dim_{}".format(ch) for ch in range(all_test_prep_eegs.shape[1])])
+test_labels_df = pd.DataFrame(all_test_labels, index=IDs, columns=["class_val"])
+for sample_idx in range(all_test_prep_eegs.shape[0]):
+    for ch_idx in range(all_test_prep_eegs.shape[1]):
+        test_prep_eegs_df.at[test_prep_eegs_df.index[sample_idx], test_prep_eegs_df.columns[ch_idx]] = \
+            pd.Series(all_test_prep_eegs[sample_idx, ch_idx])
+print(test_prep_eegs_df)
+print(test_labels_df)
+test_prep_eegs_df.to_pickle('{}_test_eegs_df.pickle'.format(modality))
+test_labels_df.to_pickle('{}_test_labels_df.pickle'.format(modality))

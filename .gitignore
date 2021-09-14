@@ -1,6 +1,8 @@
 experiments/*
 *.xls
 SpokenArabicDigits/*
+UPenn/*
+MIT/*
 
 # Env and package
 .env
