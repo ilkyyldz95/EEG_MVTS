@@ -19,7 +19,7 @@ def model_factory(config, data):
             print("Data class does not define a maximum sequence length, so it must be defined with the script argument `max_seq_len`")
             raise x
 
-    if (task == "imputation") or (task == "transduction"):
+    if (task == "imputation") or (task == "transduction") or (task == "anomaly_detection"):
         if config['model'] == 'LINEAR':
             return DummyTSTransformerEncoder(feat_dim, max_seq_len, config['d_model'], config['num_heads'],
                                              config['num_layers'], config['dim_feedforward'], dropout=config['dropout'],

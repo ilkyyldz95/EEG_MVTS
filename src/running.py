@@ -32,9 +32,8 @@ val_times = {"total_time": 0, "count": 0}
 def pipeline_factory(config):
     """For the task specified in the configuration returns the corresponding combination of
     Dataset class, collate function and Runner class."""
-
+    """
     task = config['task']
-
     if task == "imputation":
         return partial(ImputationDataset, mean_mask_length=config['mean_mask_length'],
                        masking_ratio=config['masking_ratio'], mode=config['mask_mode'],
@@ -47,6 +46,14 @@ def pipeline_factory(config):
         return ClassiregressionDataset, collate_superv, SupervisedRunner
     else:
         raise NotImplementedError("Task '{}' not implemented".format(task))
+    """
+    imputation_dataset = partial(ImputationDataset, mean_mask_length=config['mean_mask_length'],
+                       masking_ratio=config['masking_ratio'], mode=config['mask_mode'],
+                       distribution=config['mask_distribution'], exclude_feats=config['exclude_feats'])
+    transduction_dataset = partial(TransductionDataset, mask_feats=config['mask_feats'],
+                       start_hint=config['start_hint'], end_hint=config['end_hint'])
+    return ClassiregressionDataset, imputation_dataset, transduction_dataset, collate_superv, SupervisedRunner, \
+           collate_unsuperv, UnsupervisedRunner, AnomalyRunner
 
 
 def setup(args):
@@ -375,6 +382,131 @@ class UnsupervisedRunner(BaseRunner):
         else:
             return self.epoch_metrics
 
+class AnomalyRunner(BaseRunner):
+
+    def __init__(self, *args, **kwargs):
+
+        super(AnomalyRunner, self).__init__(*args, **kwargs)
+
+        self.analyzer = analysis.Analyzer(print_conf_mat=True)
+
+    def train_epoch(self, epoch_num=None):
+
+        self.model = self.model.train()
+
+        epoch_loss = 0  # total loss of epoch
+        total_active_elements = 0  # total unmasked elements in epoch
+        for i, batch in enumerate(self.dataloader):
+
+            X, targets, target_masks, padding_masks, IDs = batch
+            targets = targets.to(self.device)
+            target_masks = target_masks.to(self.device)  # 1s: mask and predict, 0s: unaffected input (ignore)
+            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+
+            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+
+            # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
+            target_masks = target_masks * padding_masks.unsqueeze(-1)
+            loss = self.loss_module(predictions, targets, target_masks)  # (num_active,) individual loss (square error per element) for each active value in batch
+            batch_loss = torch.sum(loss)
+            mean_loss = batch_loss / len(loss)  # mean loss (over active elements) used for optimization
+
+            if self.l2_reg:
+                total_loss = mean_loss + self.l2_reg * l2_reg_loss(self.model)
+            else:
+                total_loss = mean_loss
+
+            # Zero gradients, perform a backward pass, and update the weights.
+            self.optimizer.zero_grad()
+            total_loss.backward()
+
+            # torch.nn.utils.clip_grad_value_(self.model.parameters(), clip_value=1.0)
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), max_norm=4.0)
+            self.optimizer.step()
+
+            metrics = {"loss": mean_loss.item()}
+            if i % self.print_interval == 0:
+                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
+                self.print_callback(i, metrics, prefix='Training ' + ending)
+
+            with torch.no_grad():
+                total_active_elements += len(loss)
+                epoch_loss += batch_loss.item()  # add total loss of batch
+
+        epoch_loss = epoch_loss / total_active_elements  # average loss per element for whole epoch
+        self.epoch_metrics['epoch'] = epoch_num
+        self.epoch_metrics['loss'] = epoch_loss
+        return self.epoch_metrics
+
+    def evaluate(self, epoch_num=None, keep_all=True):
+
+        self.model = self.model.eval()
+
+        epoch_loss = 0  # total loss of epoch
+        total_samples = 0  # total samples in epoch
+
+        per_batch = {'target_masks': [], 'targets': [], 'predictions': [], 'metrics': [], 'IDs': []}
+        for i, batch in enumerate(self.dataloader):
+
+            X, targets, padding_masks, IDs = batch
+            targets = targets.to(self.device)
+            padding_masks = padding_masks.to(self.device)  # 0s: ignore
+            # (batch_size, padded_length, feat_dim/channels)
+            reconstructions = self.model(X.to(self.device), padding_masks)
+
+            # MAKE PREDICTIONS BY Median Absolute Error
+            predictions = torch.max(torch.median(torch.abs(reconstructions.cpu() - X), 1)[0], 1)[0]
+            print(targets.shape, predictions.shape)
+            # CANNOT CALCULATE MASKED LOSS AS VALIDATION IS SUPERVISED AND DOES NOT LOAD MASKS
+            mean_loss = 0
+
+            per_batch['targets'].append(targets.cpu().numpy())  # (batch_size,)
+            per_batch['predictions'].append(predictions.cpu().numpy())
+            per_batch['metrics'].append([mean_loss])
+            per_batch['IDs'].append(IDs)
+
+            metrics = {"loss": mean_loss}
+            if i % self.print_interval == 0:
+                ending = "" if epoch_num is None else 'Epoch {} '.format(epoch_num)
+                self.print_callback(i, metrics, prefix='Evaluating ' + ending)
+
+            total_samples += len(predictions)
+            epoch_loss += mean_loss  # add total loss of batch
+
+        epoch_loss = epoch_loss / total_samples  # average loss per element for whole epoch
+        self.epoch_metrics['epoch'] = epoch_num
+        self.epoch_metrics['loss'] = epoch_loss
+
+        # calculate prediction performance
+        predictions = torch.from_numpy(np.concatenate(per_batch['predictions'], axis=0))
+        probs = torch.nn.functional.sigmoid(
+            predictions)  # (total_samples, ) est. prob. for each class and sample
+        probs = probs.cpu().numpy()
+        targets = np.concatenate(per_batch['targets'], axis=0).flatten()
+
+        false_pos_rate, true_pos_rate, thresholds = sklearn.metrics.roc_curve(targets, probs)  # 1D scores needed
+        self.epoch_metrics['AUROC'] = sklearn.metrics.auc(false_pos_rate, true_pos_rate)
+        prec, rec, _ = sklearn.metrics.precision_recall_curve(targets, probs)
+        self.epoch_metrics['AUPRC'] = sklearn.metrics.auc(rec, prec)
+
+        # threshold by geometric mean
+        gmeans = np.sqrt(true_pos_rate * (1 - false_pos_rate))
+        ix = np.argmax(gmeans)
+        print('Non-seizure vs. Seizure classification threshold=%f' % (thresholds[ix]))
+        predictions = np.array(probs > thresholds[ix])
+
+        class_names = ["Non-seizure", "Seizure"]
+        metrics_dict = self.analyzer.analyze_classification(predictions, targets, class_names)
+
+        self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
+        self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
+        self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
+
+        if keep_all:
+            return self.epoch_metrics, per_batch
+        else:
+            return self.epoch_metrics
+
 
 class SupervisedRunner(BaseRunner):
 
@@ -482,6 +614,7 @@ class SupervisedRunner(BaseRunner):
 
             self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
             self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
+            self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
 
             if self.model.num_classes == 2:
                 false_pos_rate, true_pos_rate, _ = sklearn.metrics.roc_curve(targets, probs[:, 1])  # 1D scores needed

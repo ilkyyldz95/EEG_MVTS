@@ -83,12 +83,13 @@ class Options(object):
         self.parser.add_argument('--subsample_factor', type=int,
                                  help='Sub-sampling factor used for long sequences: keep every kth sample')
         # Training process
-        self.parser.add_argument('--task', choices={"imputation", "transduction", "classification", "regression"},
+        self.parser.add_argument('--task', choices={"imputation", "transduction", "classification", "regression", "anomaly_detection"},
                                  default="imputation",
                                  help=("Training objective/task: imputation of masked values,\n"
                                        "                          transduction of features to other features,\n"
                                        "                          classification of entire time series,\n"
-                                       "                          regression of scalar(s) for entire time series"))
+                                       "                          regression of scalar(s) for entire time series,\n"
+                                       "                          anomaly detection based on reconstruction error"))
         self.parser.add_argument('--masking_ratio', type=float, default=0.15,
                                  help='Imputation: mask this proportion of each variable')
         self.parser.add_argument('--mean_mask_length', type=float, default=3,

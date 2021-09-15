@@ -38,8 +38,6 @@ from optimizers import get_optimizer
 def main(config):
 
     total_epoch_time = 0
-    total_eval_time = 0
-
     total_start_time = time.time()
 
     # Add file logging besides stdout
@@ -200,24 +198,55 @@ def main(config):
         return
     
     # Initialize data generators
-    dataset_class, collate_fn, runner_class = pipeline_factory(config)
-    val_dataset = dataset_class(val_data, val_indices)
+    classiregression_dataset, imputation_dataset, transduction_dataset, collate_superv, supervised_runner, \
+    collate_unsuperv, unsupervised_runner, anomaly_runner = pipeline_factory(config)
+
+    task = config['task']
+    if task == "imputation":
+        val_dataset_class = imputation_dataset
+        train_dataset_class = imputation_dataset
+        runner_class = unsupervised_runner
+        val_collate_fn = collate_unsuperv
+        train_collate_fn = collate_unsuperv
+    if task == "transduction":
+        val_dataset_class = transduction_dataset
+        train_dataset_class = transduction_dataset
+        runner_class = unsupervised_runner
+        val_collate_fn = collate_unsuperv
+        train_collate_fn = collate_unsuperv
+    if (task == "classification") or (task == "regression"):
+        val_dataset_class = classiregression_dataset
+        train_dataset_class = classiregression_dataset
+        runner_class = supervised_runner
+        val_collate_fn = collate_superv
+        train_collate_fn = collate_superv
+    if task == "anomaly_detection":
+        # unsupervised training, supervised identification
+        val_dataset_class = classiregression_dataset
+        train_dataset_class = imputation_dataset
+        runner_class = anomaly_runner
+        val_collate_fn = collate_superv
+        train_collate_fn = collate_unsuperv
+    else:
+        raise NotImplementedError("Task '{}' not implemented".format(task))
+
+    val_dataset = val_dataset_class(val_data, val_indices)
 
     val_loader = DataLoader(dataset=val_dataset,
                             batch_size=config['batch_size'],
                             shuffle=False,
                             num_workers=config['num_workers'],
                             pin_memory=True,
-                            collate_fn=lambda x: collate_fn(x, max_len=model.max_len))
+                            collate_fn=lambda x: val_collate_fn(x, max_len=model.max_len))
 
-    train_dataset = dataset_class(my_data, train_indices)
+    train_dataset = train_dataset_class(my_data, train_indices)
 
     train_loader = DataLoader(dataset=train_dataset,
                               batch_size=config['batch_size'],
                               shuffle=True,
                               num_workers=config['num_workers'],
                               pin_memory=True,
-                              collate_fn=lambda x: collate_fn(x, max_len=model.max_len))
+                              collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len))
 
     trainer = runner_class(model, train_loader, device, loss_module, optimizer, l2_reg=output_reg,
                                  print_interval=config['print_interval'], console=config['console'])
