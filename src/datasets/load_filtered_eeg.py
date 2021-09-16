@@ -8,11 +8,10 @@ import pickle
 import matplotlib.pyplot as plt
 import pandas as pd
 
-Restore = True
-modality = "UPenn/upenn_extended"
-fs = 500.0
-img_size = 36000  # to cover shortest activity of 1 s
-n_channels = 72
+modality = "MIT/mit"
+fs = 256.0
+img_size = 58368  # 58368 maximum to cover the shortest activity of 6 secs
+n_channels = 38
 sub_window_size = int(img_size / n_channels)  # sub_window_size / fs second window
 downsample_factor = 2
 print("{} channels with window size {}".format(n_channels, sub_window_size))

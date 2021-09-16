@@ -242,17 +242,19 @@ def check_progress(epoch):
 
 class BaseRunner(object):
 
-    def __init__(self, model, dataloader, device, loss_module, optimizer=None, l2_reg=None, print_interval=10, console=True):
+    def __init__(self, model, dataloader, device, loss_module, output_dir="experiments", fs=500,
+                 optimizer=None, l2_reg=None, print_interval=10, console=True):
 
         self.model = model
         self.dataloader = dataloader
         self.device = device
+        self.fs = fs
         self.optimizer = optimizer
         self.loss_module = loss_module
         self.l2_reg = l2_reg
         self.print_interval = print_interval
         self.printer = utils.Printer(console=console)
-
+        self.output_dir = output_dir
         self.epoch_metrics = OrderedDict()
 
     def train_epoch(self, epoch_num=None):
@@ -387,7 +389,6 @@ class AnomalyRunner(BaseRunner):
     def __init__(self, *args, **kwargs):
 
         super(AnomalyRunner, self).__init__(*args, **kwargs)
-
         self.analyzer = analysis.Analyzer(print_conf_mat=True)
 
     def train_epoch(self, epoch_num=None):
@@ -449,18 +450,17 @@ class AnomalyRunner(BaseRunner):
         for i, batch in enumerate(self.dataloader):
 
             X, targets, padding_masks, IDs = batch
-            targets = targets.to(self.device)
+            targets = targets.numpy()
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
             # (batch_size, padded_length, feat_dim/channels)
             reconstructions = self.model(X.to(self.device), padding_masks)
 
             # MAKE PREDICTIONS BY Median Absolute Error
-            predictions = torch.max(torch.median(torch.abs(reconstructions.cpu() - X), 1)[0], 1)[0]
-            print(targets.shape, predictions.shape)
+            predictions, detect_channels = torch.max(torch.median(torch.abs(reconstructions.cpu() - X), 1)[0], 1)
             # CANNOT CALCULATE MASKED LOSS AS VALIDATION IS SUPERVISED AND DOES NOT LOAD MASKS
             mean_loss = 0
 
-            per_batch['targets'].append(targets.cpu().numpy())  # (batch_size,)
+            per_batch['targets'].append(targets)  # (batch_size,)
             per_batch['predictions'].append(predictions.cpu().numpy())
             per_batch['metrics'].append([mean_loss])
             per_batch['IDs'].append(IDs)
@@ -472,6 +472,16 @@ class AnomalyRunner(BaseRunner):
 
             total_samples += len(predictions)
             epoch_loss += mean_loss  # add total loss of batch
+
+            # record for plotting example windows
+            if i == 0:
+                X_array = X.numpy().copy()
+                IDs_array = IDs
+                detect_channels_array = detect_channels.numpy().copy()
+            else:
+                X_array = np.concatenate([X_array, X.numpy()], axis=0)
+                IDs_array.extend(IDs)
+                detect_channels_array = np.concatenate([detect_channels_array, detect_channels.numpy()], axis=0)
 
         epoch_loss = epoch_loss / total_samples  # average loss per element for whole epoch
         self.epoch_metrics['epoch'] = epoch_num
@@ -501,6 +511,11 @@ class AnomalyRunner(BaseRunner):
         self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
         self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
         self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
+
+        # plot example windows
+        print("Plotting example windows")
+        analysis.plot_example_windows(X_array, targets, predictions, IDs_array, detect_channels_array,
+                                      self.output_dir, self.fs)
 
         if keep_all:
             return self.epoch_metrics, per_batch

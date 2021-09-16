@@ -178,17 +178,57 @@ def main(config):
 
     loss_module = get_loss_module(config)
 
+    # Initialize data generators
+    classiregression_dataset, imputation_dataset, transduction_dataset, collate_superv, supervised_runner, \
+    collate_unsuperv, unsupervised_runner, anomaly_runner = pipeline_factory(config)
+
+    task = config['task']
+    if task == "imputation":
+        test_dataset_class = imputation_dataset
+        val_dataset_class = imputation_dataset
+        train_dataset_class = imputation_dataset
+        runner_class = unsupervised_runner
+        test_collate_fn = collate_unsuperv
+        val_collate_fn = collate_unsuperv
+        train_collate_fn = collate_unsuperv
+    if task == "transduction":
+        test_dataset_class = transduction_dataset
+        val_dataset_class = transduction_dataset
+        train_dataset_class = transduction_dataset
+        runner_class = unsupervised_runner
+        test_collate_fn = collate_unsuperv
+        val_collate_fn = collate_unsuperv
+        train_collate_fn = collate_unsuperv
+    if (task == "classification") or (task == "regression"):
+        test_dataset_class = classiregression_dataset
+        val_dataset_class = classiregression_dataset
+        train_dataset_class = classiregression_dataset
+        runner_class = supervised_runner
+        test_collate_fn = collate_superv
+        val_collate_fn = collate_superv
+        train_collate_fn = collate_superv
+    if task == "anomaly_detection":
+        # unsupervised training, supervised identification
+        test_dataset_class = classiregression_dataset
+        val_dataset_class = classiregression_dataset
+        train_dataset_class = imputation_dataset
+        runner_class = anomaly_runner
+        test_collate_fn = collate_superv
+        val_collate_fn = collate_superv
+        train_collate_fn = collate_unsuperv
+    else:
+        raise NotImplementedError("Task '{}' not implemented".format(task))
+
     if config['test_only'] == 'testset':  # Only evaluate and skip training
-        dataset_class, collate_fn, runner_class = pipeline_factory(config['task'])
-        test_dataset = dataset_class(test_data, test_indices)
+        test_dataset = test_dataset_class(test_data, test_indices)
 
         test_loader = DataLoader(dataset=test_dataset,
                                  batch_size=config['batch_size'],
                                  shuffle=False,
                                  num_workers=config['num_workers'],
                                  pin_memory=True,
-                                 collate_fn=lambda x: collate_fn(x, max_len=model.max_len))
-        test_evaluator = runner_class(model, test_loader, device, loss_module,
+                                 collate_fn=lambda x: test_collate_fn(x, max_len=model.max_len))
+        test_evaluator = runner_class(model, test_loader, device, loss_module, output_dir=config['output_dir'],
                                             print_interval=config['print_interval'], console=config['console'])
         aggr_metrics_test, per_batch_test = test_evaluator.evaluate(keep_all=True)
         print_str = 'Test Summary: '
@@ -196,39 +236,6 @@ def main(config):
             print_str += '{}: {:8f} | '.format(k, v)
         logger.info(print_str)
         return
-    
-    # Initialize data generators
-    classiregression_dataset, imputation_dataset, transduction_dataset, collate_superv, supervised_runner, \
-    collate_unsuperv, unsupervised_runner, anomaly_runner = pipeline_factory(config)
-
-    task = config['task']
-    if task == "imputation":
-        val_dataset_class = imputation_dataset
-        train_dataset_class = imputation_dataset
-        runner_class = unsupervised_runner
-        val_collate_fn = collate_unsuperv
-        train_collate_fn = collate_unsuperv
-    if task == "transduction":
-        val_dataset_class = transduction_dataset
-        train_dataset_class = transduction_dataset
-        runner_class = unsupervised_runner
-        val_collate_fn = collate_unsuperv
-        train_collate_fn = collate_unsuperv
-    if (task == "classification") or (task == "regression"):
-        val_dataset_class = classiregression_dataset
-        train_dataset_class = classiregression_dataset
-        runner_class = supervised_runner
-        val_collate_fn = collate_superv
-        train_collate_fn = collate_superv
-    if task == "anomaly_detection":
-        # unsupervised training, supervised identification
-        val_dataset_class = classiregression_dataset
-        train_dataset_class = imputation_dataset
-        runner_class = anomaly_runner
-        val_collate_fn = collate_superv
-        train_collate_fn = collate_unsuperv
-    else:
-        raise NotImplementedError("Task '{}' not implemented".format(task))
 
     val_dataset = val_dataset_class(val_data, val_indices)
 
@@ -248,10 +255,10 @@ def main(config):
                               pin_memory=True,
                               collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len))
 
-    trainer = runner_class(model, train_loader, device, loss_module, optimizer, l2_reg=output_reg,
-                                 print_interval=config['print_interval'], console=config['console'])
-    val_evaluator = runner_class(model, val_loader, device, loss_module,
-                                       print_interval=config['print_interval'], console=config['console'])
+    trainer = runner_class(model, train_loader, device, loss_module, optimizer=optimizer, l2_reg=output_reg, output_dir=config['output_dir'],
+                                 print_interval=config['print_interval'], console=config['console'], fs=config['fs'])
+    val_evaluator = runner_class(model, val_loader, device, loss_module, output_dir=config['output_dir'],
+                                       print_interval=config['print_interval'], console=config['console'], fs=config['fs'])
 
     tensorboard_writer = SummaryWriter(config['tensorboard_dir'])
 

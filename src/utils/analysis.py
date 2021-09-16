@@ -7,12 +7,113 @@ import numpy as np
 import sys
 
 import matplotlib.pyplot as plt
+import matplotlib
 
 from sklearn import metrics
 from tabulate import tabulate
 import math
 import logging
 from datetime import datetime
+import os
+
+def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_dir, fs):
+    sub_window_size = X.shape[1]
+    n_channels = X.shape[2]
+    print("{} channels with window size {}".format(n_channels, sub_window_size))
+    T = np.arange(1, sub_window_size + 1) / fs
+
+    true_positive_idx = np.random.permutation([idx for idx in range(len(targets)) if
+                                               targets[idx] == 1 and predictions[idx] == 1])
+    false_positive_idx = np.random.permutation([idx for idx in range(len(targets)) if
+                                                targets[idx] == 0 and predictions[idx] == 1])
+    true_negative_idx = np.random.permutation([idx for idx in range(len(targets)) if
+                                               targets[idx] == 0 and predictions[idx] == 0])
+    false_negative_idx = np.random.permutation([idx for idx in range(len(targets)) if
+                                                targets[idx] == 1 and predictions[idx] == 0])
+
+    matplotlib.rc('ytick', labelsize=6)
+    plt.figure()
+    _, axs = plt.subplots(2, 2)
+    vis_idx = 0
+    for window_idx in true_positive_idx:
+        # Plot original unnormalized signal
+        img = X[window_idx]
+        patient_name = IDs[window_idx]
+        ch = detect_channels[window_idx]
+        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        vis_idx += 1
+        if vis_idx == 4:
+            break
+    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[1, 0].set(xlabel=r'Time (s)')
+    axs[1, 1].set(xlabel=r'Time (s)')
+    plt.savefig(os.path.join(output_dir, "true_positive.pdf"), bbox_inches='tight')
+    plt.close()
+
+    matplotlib.rc('ytick', labelsize=6)
+    plt.figure()
+    _, axs = plt.subplots(2, 2)
+    vis_idx = 0
+    for window_idx in false_positive_idx:
+        # Plot original unnormalized signal
+        img = X[window_idx]
+        patient_name = IDs[window_idx]
+        ch = detect_channels[window_idx]
+        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        vis_idx += 1
+        if vis_idx == 4:
+            break
+    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[1, 0].set(xlabel=r'Time (s)')
+    axs[1, 1].set(xlabel=r'Time (s)')
+    plt.savefig(os.path.join(output_dir, "false_positive.pdf"), bbox_inches='tight')
+    plt.close()
+
+    matplotlib.rc('ytick', labelsize=6)
+    plt.figure()
+    _, axs = plt.subplots(2, 2)
+    vis_idx = 0
+    for window_idx in true_negative_idx:
+        # Plot original unnormalized signal
+        img = X[window_idx]
+        patient_name = IDs[window_idx]
+        ch = detect_channels[window_idx]
+        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        vis_idx += 1
+        if vis_idx == 4:
+            break
+    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[1, 0].set(xlabel=r'Time (s)')
+    axs[1, 1].set(xlabel=r'Time (s)')
+    plt.savefig(os.path.join(output_dir, 'true_negative.pdf'), bbox_inches='tight')
+    plt.close()
+
+    matplotlib.rc('ytick', labelsize=6)
+    plt.figure()
+    _, axs = plt.subplots(2, 2)
+    vis_idx = 0
+    for window_idx in false_negative_idx:
+        # Plot original unnormalized signal
+        img = X[window_idx]
+        patient_name = IDs[window_idx]
+        ch = detect_channels[window_idx]
+        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        vis_idx += 1
+        if vis_idx == 4:
+            break
+    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
+    axs[1, 0].set(xlabel=r'Time (s)')
+    axs[1, 1].set(xlabel=r'Time (s)')
+    plt.savefig(os.path.join(output_dir, 'false_negative.pdf'), bbox_inches='tight')
+    plt.close()
 
 
 def acc_top_k(predictions, y_true):
