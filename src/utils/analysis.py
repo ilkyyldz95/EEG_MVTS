@@ -38,7 +38,8 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
     for window_idx in true_positive_idx:
         # Plot original unnormalized signal
         img = X[window_idx]
-        patient_name = IDs[window_idx]
+        patient_name_raw = IDs[window_idx]
+        patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
         axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
         axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
@@ -59,7 +60,8 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
     for window_idx in false_positive_idx:
         # Plot original unnormalized signal
         img = X[window_idx]
-        patient_name = IDs[window_idx]
+        patient_name_raw = IDs[window_idx]
+        patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
         axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
         axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
@@ -80,7 +82,8 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
     for window_idx in true_negative_idx:
         # Plot original unnormalized signal
         img = X[window_idx]
-        patient_name = IDs[window_idx]
+        patient_name_raw = IDs[window_idx]
+        patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
         axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
         axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
@@ -101,7 +104,8 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
     for window_idx in false_negative_idx:
         # Plot original unnormalized signal
         img = X[window_idx]
-        patient_name = IDs[window_idx]
+        patient_name_raw = IDs[window_idx]
+        patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
         axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
         axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)

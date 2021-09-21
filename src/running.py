@@ -242,13 +242,13 @@ def check_progress(epoch):
 
 class BaseRunner(object):
 
-    def __init__(self, model, dataloader, device, loss_module, output_dir="experiments", fs=500,
+    def __init__(self, model, dataloader, device, loss_module, output_dir="experiments", fs=500, subsample_factor=1,
                  optimizer=None, l2_reg=None, print_interval=10, console=True):
 
         self.model = model
         self.dataloader = dataloader
         self.device = device
-        self.fs = fs
+        self.fs = fs / subsample_factor
         self.optimizer = optimizer
         self.loss_module = loss_module
         self.l2_reg = l2_reg
