@@ -242,7 +242,7 @@ def check_progress(epoch):
 
 class BaseRunner(object):
 
-    def __init__(self, model, dataloader, device, loss_module, output_dir="experiments", fs=500, subsample_factor=1,
+    def __init__(self, model, dataloader, device, loss_module, feat_dim, output_dir="experiments", fs=500, subsample_factor=1,
                  optimizer=None, l2_reg=None, print_interval=10, console=True):
 
         self.model = model
@@ -251,6 +251,7 @@ class BaseRunner(object):
         self.fs = fs / subsample_factor
         self.optimizer = optimizer
         self.loss_module = loss_module
+        self.feat_dim = feat_dim
         self.l2_reg = l2_reg
         self.print_interval = print_interval
         self.printer = utils.Printer(console=console)
@@ -293,7 +294,8 @@ class UnsupervisedRunner(BaseRunner):
             target_masks = target_masks.to(self.device)  # 1s: mask and predict, 0s: unaffected input (ignore)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
-            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+            predictions_attention = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim + padded_length)
+            predictions = predictions_attention[:,:,:self.feat_dim]
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
@@ -352,7 +354,9 @@ class UnsupervisedRunner(BaseRunner):
             #
             # utils.check_model(self.model, verbose=False, stop_on_error=True)
 
-            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+            predictions_attention = self.model(X.to(self.device),
+                                               padding_masks)  # (batch_size, padded_length, feat_dim + padded_length)
+            predictions = predictions_attention[:,:,:self.feat_dim]
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
@@ -404,7 +408,9 @@ class AnomalyRunner(BaseRunner):
             target_masks = target_masks.to(self.device)  # 1s: mask and predict, 0s: unaffected input (ignore)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
 
-            predictions = self.model(X.to(self.device), padding_masks)  # (batch_size, padded_length, feat_dim)
+            predictions_attention = self.model(X.to(self.device),
+                                               padding_masks)  # (batch_size, padded_length, feat_dim + padded_length)
+            predictions = predictions_attention[:,:,:self.feat_dim]
 
             # Cascade noise masks (batch_size, padded_length, feat_dim) and padding masks (batch_size, padded_length)
             target_masks = target_masks * padding_masks.unsqueeze(-1)
@@ -452,8 +458,12 @@ class AnomalyRunner(BaseRunner):
             X, targets, padding_masks, IDs = batch
             targets = targets.numpy()
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
-            # (batch_size, padded_length, feat_dim/channels)
-            reconstructions = self.model(X.to(self.device), padding_masks)
+            # reconstructions: (batch_size, padded_length, feat_dim + padded_length)
+            # attention_weights: (batch_size, padded_length, padded_length)
+            predictions_attention = self.model(X.to(self.device),
+                                               padding_masks)  # (batch_size, padded_length, feat_dim + padded_length)
+            reconstructions = predictions_attention[:, :, :self.feat_dim]
+            attention_weights = predictions_attention[:, :, self.feat_dim:]
 
             # MAKE PREDICTIONS BY Median Absolute Error
             predictions, detect_channels = torch.max(torch.median(torch.abs(reconstructions.cpu() - X), 1)[0], 1)
@@ -476,10 +486,12 @@ class AnomalyRunner(BaseRunner):
             # record for plotting example windows
             if i == 0:
                 X_array = X.numpy().copy()
+                attention_array = attention_weights.cpu().numpy().copy()
                 IDs_array = IDs
                 detect_channels_array = detect_channels.numpy().copy()
             else:
                 X_array = np.concatenate([X_array, X.numpy()], axis=0)
+                attention_array = np.concatenate([attention_array, attention_weights.cpu().numpy()], axis=0)
                 IDs_array.extend(IDs)
                 detect_channels_array = np.concatenate([detect_channels_array, detect_channels.numpy()], axis=0)
 
@@ -514,7 +526,7 @@ class AnomalyRunner(BaseRunner):
 
         # plot example windows
         print("Plotting example windows")
-        analysis.plot_example_windows(X_array, targets, predictions, IDs_array, detect_channels_array,
+        analysis.plot_example_windows(X_array, attention_array, targets, predictions, IDs_array, detect_channels_array,
                                       self.output_dir, self.fs)
 
         if keep_all:

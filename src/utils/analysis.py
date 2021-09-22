@@ -8,7 +8,7 @@ import sys
 
 import matplotlib.pyplot as plt
 import matplotlib
-
+import seaborn as sns
 from sklearn import metrics
 from tabulate import tabulate
 import math
@@ -16,7 +16,7 @@ import logging
 from datetime import datetime
 import os
 
-def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_dir, fs):
+def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect_channels, output_dir, fs):
     sub_window_size = X.shape[1]
     n_channels = X.shape[2]
     print("{} channels with window size {}".format(n_channels, sub_window_size))
@@ -41,15 +41,17 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
         patient_name_raw = IDs[window_idx]
         patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
-        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
-        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        axs[0, vis_idx].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[0, vis_idx].set(title=patient_name, xlabel=r'Time (s)')
+        # attention heatmap
+        sns.heatmap(attention_weights[window_idx], cmap="YlGnBu", ax=axs[1, vis_idx], cbar=False)
         vis_idx += 1
-        if vis_idx == 4:
+        if vis_idx == 2:
             break
-    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[1, 0].set(xlabel=r'Time (s)')
-    axs[1, 1].set(xlabel=r'Time (s)')
+    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
     plt.savefig(os.path.join(output_dir, "true_positive.pdf"), bbox_inches='tight')
     plt.close()
 
@@ -63,15 +65,21 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
         patient_name_raw = IDs[window_idx]
         patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
-        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
-        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        axs[0, vis_idx].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[0, vis_idx].set(title=patient_name, xlabel=r'Time (s)')
+        # attention heatmap
+        sns.heatmap(attention_weights[window_idx], cmap="YlGnBu", ax=axs[1, vis_idx], cbar=False)
         vis_idx += 1
-        if vis_idx == 4:
+        if vis_idx == 2:
             break
-    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[1, 0].set(xlabel=r'Time (s)')
-    axs[1, 1].set(xlabel=r'Time (s)')
+    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
     plt.savefig(os.path.join(output_dir, "false_positive.pdf"), bbox_inches='tight')
     plt.close()
 
@@ -85,15 +93,21 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
         patient_name_raw = IDs[window_idx]
         patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
-        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
-        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        axs[0, vis_idx].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[0, vis_idx].set(title=patient_name, xlabel=r'Time (s)')
+        # attention heatmap
+        sns.heatmap(attention_weights[window_idx], cmap="YlGnBu", ax=axs[1, vis_idx], cbar=False)
         vis_idx += 1
-        if vis_idx == 4:
+        if vis_idx == 2:
             break
-    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[1, 0].set(xlabel=r'Time (s)')
-    axs[1, 1].set(xlabel=r'Time (s)')
+    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
     plt.savefig(os.path.join(output_dir, 'true_negative.pdf'), bbox_inches='tight')
     plt.close()
 
@@ -107,15 +121,21 @@ def plot_example_windows(X, targets, predictions, IDs, detect_channels, output_d
         patient_name_raw = IDs[window_idx]
         patient_name = patient_name_raw if "/" not in patient_name_raw else patient_name_raw.split("/")[-1]
         ch = detect_channels[window_idx]
-        axs[int(vis_idx / 2), int(vis_idx % 2)].plot(T, img[:, ch], c="b", linewidth=0.5)
-        axs[int(vis_idx / 2), int(vis_idx % 2)].set(title=patient_name)
+        axs[0, vis_idx].plot(T, img[:, ch], c="b", linewidth=0.5)
+        axs[0, vis_idx].set(title=patient_name, xlabel=r'Time (s)')
+        # attention heatmap
+        sns.heatmap(attention_weights[window_idx], cmap="YlGnBu", ax=axs[1, vis_idx], cbar=False)
         vis_idx += 1
-        if vis_idx == 4:
+        if vis_idx == 2:
             break
-    axs[0, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[0, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for top 2
-    axs[1, 0].set(xlabel=r'Time (s)')
-    axs[1, 1].set(xlabel=r'Time (s)')
+    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
+                          labelbottom=False)  # hide x ticks for bottom 2
     plt.savefig(os.path.join(output_dir, 'false_negative.pdf'), bbox_inches='tight')
     plt.close()
 

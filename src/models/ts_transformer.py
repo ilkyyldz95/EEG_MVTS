@@ -2,9 +2,10 @@ from typing import Optional, Any
 import math
 
 import torch
+import copy
 from torch import nn, Tensor
 from torch.nn import functional as F
-from torch.nn.modules import MultiheadAttention, Linear, Dropout, BatchNorm1d, TransformerEncoderLayer
+from torch.nn.modules import MultiheadAttention, Linear, Dropout, BatchNorm1d, LayerNorm, TransformerEncoderLayer
 
 
 def model_factory(config, data):
@@ -133,10 +134,156 @@ def get_pos_encoder(pos_encoding):
 
     raise NotImplementedError("pos_encoding should be 'learnable'/'fixed', not '{}'".format(pos_encoding))
 
+def _get_clones(module, N):
+    return nn.ModuleList([copy.deepcopy(module) for i in range(N)])
+
+class TransformerEncoder(nn.Module):
+    r"""TransformerEncoder is a stack of N encoder layers
+    Args:
+        encoder_layer: an instance of the TransformerEncoderLayer() class (required).
+        num_layers: the number of sub-encoder-layers in the encoder (required).
+        norm: the layer normalization component (optional).
+    Examples::
+        >>> encoder_layer = nn.TransformerEncoderLayer(d_model=512, nhead=8)
+        >>> transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers=6)
+        >>> src = torch.rand(10, 32, 512)
+        >>> out = transformer_encoder(src)
+    """
+    __constants__ = ['norm']
+
+    def __init__(self, encoder_layer, num_layers, norm=None):
+        super(TransformerEncoder, self).__init__()
+        self.layers = _get_clones(encoder_layer, num_layers)
+        self.num_layers = num_layers
+        self.norm = norm
+
+    def forward(self, src: Tensor, mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        r"""Pass the input through the encoder layers in turn.
+        Args:
+            src: the sequence to the encoder (required).
+            mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+        Shape:
+            see the docs in Transformer class.
+        """
+        output = src
+
+        for mod in self.layers:
+            output, attn_weights = mod(output, src_mask=mask, src_key_padding_mask=src_key_padding_mask)
+        if self.norm is not None:
+            output = self.norm(output)
+
+        return output, attn_weights
+
+class TransformerLayerNormEncoderLayer(nn.modules.Module):
+    r"""TransformerLayerNormEncoderLayer is made up of self-attn and feedforward network.
+    This standard encoder layer is based on the paper "Attention Is All You Need".
+    Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones, Aidan N Gomez,
+    Lukasz Kaiser, and Illia Polosukhin. 2017. Attention is all you need. In Advances in
+    Neural Information Processing Systems, pages 6000-6010. Users may modify or implement
+    in a different way during application.
+    Args:
+        d_model: the number of expected features in the input (required).
+        nhead: the number of heads in the multiheadattention models (required).
+        dim_feedforward: the dimension of the feedforward network model (default=2048).
+        dropout: the dropout value (default=0.1).
+        activation: the activation function of the intermediate layer, can be a string
+            ("relu" or "gelu") or a unary callable. Default: relu
+        layer_norm_eps: the eps value in layer normalization components (default=1e-5).
+        batch_first: If ``True``, then the input and output tensors are provided
+            as (batch, seq, feature). Default: ``False``.
+        norm_first: if ``True``, layer norm is done prior to attention and feedforward
+            operations, respectivaly. Otherwise it's done after. Default: ``False`` (after).
+    Examples::
+        >>> encoder_layer = nn.TransformerLayerNormEncoderLayer(d_model=512, nhead=8)
+        >>> src = torch.rand(10, 32, 512)
+        >>> out = encoder_layer(src)
+    Alternatively, when ``batch_first`` is ``True``:
+        >>> encoder_layer = nn.TransformerLayerNormEncoderLayer(d_model=512, nhead=8, batch_first=True)
+        >>> src = torch.rand(32, 10, 512)
+        >>> out = encoder_layer(src)
+    """
+    __constants__ = ['batch_first', 'norm_first']
+
+    def __init__(self, d_model, nhead, dim_feedforward=2048, dropout=0.1, activation=F.relu,
+                 layer_norm_eps=1e-5, batch_first=False, norm_first=False,
+                 device=None, dtype=None) -> None:
+        factory_kwargs = {'device': device, 'dtype': dtype}
+        super(TransformerLayerNormEncoderLayer, self).__init__()
+        self.self_attn = MultiheadAttention(d_model, nhead, dropout=dropout, batch_first=batch_first,
+                                            **factory_kwargs)
+        # Implementation of Feedforward model
+        self.linear1 = Linear(d_model, dim_feedforward, **factory_kwargs)
+        self.dropout = Dropout(dropout)
+        self.linear2 = Linear(dim_feedforward, d_model, **factory_kwargs)
+
+        self.norm_first = norm_first
+        self.norm1 = LayerNorm(d_model, eps=layer_norm_eps, **factory_kwargs)
+        self.norm2 = LayerNorm(d_model, eps=layer_norm_eps, **factory_kwargs)
+        self.dropout1 = Dropout(dropout)
+        self.dropout2 = Dropout(dropout)
+
+        # Legacy string support for activation function.
+        if isinstance(activation, str):
+            self.activation = _get_activation_fn(activation)
+        else:
+            self.activation = activation
+
+    def __setstate__(self, state):
+        if 'activation' not in state:
+            state['activation'] = F.relu
+        super(TransformerLayerNormEncoderLayer, self).__setstate__(state)
+
+    def forward(self, src: Tensor, src_mask: Optional[Tensor] = None, src_key_padding_mask: Optional[Tensor] = None) -> Tensor:
+        r"""Pass the input through the encoder layer.
+        Args:
+            src: the sequence to the encoder layer (required).
+            src_mask: the mask for the src sequence (optional).
+            src_key_padding_mask: the mask for the src keys per batch (optional).
+        Shape:
+            see the docs in Transformer class.
+        """
+        """
+        x = src
+        if self.norm_first:
+            x = x + self._sa_block(self.norm1(x), src_mask, src_key_padding_mask)
+            x = x + self._ff_block(self.norm2(x))
+        else:
+            x = self.norm1(x + self._sa_block(x, src_mask, src_key_padding_mask))
+            x = self.norm2(x + self._ff_block(x))
+        return x
+        """
+        src2, attn_weights = self.self_attn(src, src, src, attn_mask=src_mask,
+                                            key_padding_mask=src_key_padding_mask)
+        src = src + self.dropout1(src2)  # (seq_len, batch_size, d_model)
+        src = src.permute(1, 2, 0)  # (batch_size, d_model, seq_len)
+        # src = src.reshape([src.shape[0], -1])  # (batch_size, seq_length * d_model)
+        src = self.norm1(src)
+        src = src.permute(2, 0, 1)  # restore (seq_len, batch_size, d_model)
+        src2 = self.linear2(self.dropout(self.activation(self.linear1(src))))
+        src = src + self.dropout2(src2)  # (seq_len, batch_size, d_model)
+        src = src.permute(1, 2, 0)  # (batch_size, d_model, seq_len)
+        src = self.norm2(src)
+        src = src.permute(2, 0, 1)  # restore (seq_len, batch_size, d_model)
+        return src, attn_weights
+
+    # self-attention block
+    def _sa_block(self, x: Tensor,
+                  attn_mask: Optional[Tensor], key_padding_mask: Optional[Tensor]) -> Tensor:
+        x = self.self_attn(x, x, x,
+                           attn_mask=attn_mask,
+                           key_padding_mask=key_padding_mask,
+                           need_weights=False)[0]
+        return self.dropout1(x)
+
+    # feed forward block
+    def _ff_block(self, x: Tensor) -> Tensor:
+        x = self.linear2(self.dropout(self.activation(self.linear1(x))))
+        return self.dropout2(x)
 
 class TransformerBatchNormEncoderLayer(nn.modules.Module):
     r"""This transformer encoder layer block is made up of self-attn and feedforward network.
-    It differs from TransformerEncoderLayer in torch/nn/modules/transformer.py in that it replaces LayerNorm
+    It differs from TransformerLayerNormEncoderLayer in torch/nn/modules/transformer.py in that it replaces LayerNorm
     with BatchNorm.
 
     Args:
@@ -179,8 +326,8 @@ class TransformerBatchNormEncoderLayer(nn.modules.Module):
         Shape:
             see the docs in Transformer class.
         """
-        src2 = self.self_attn(src, src, src, attn_mask=src_mask,
-                              key_padding_mask=src_key_padding_mask)[0]
+        src2, attn_weights = self.self_attn(src, src, src, attn_mask=src_mask,
+                              key_padding_mask=src_key_padding_mask)
         src = src + self.dropout1(src2)  # (seq_len, batch_size, d_model)
         src = src.permute(1, 2, 0)  # (batch_size, d_model, seq_len)
         # src = src.reshape([src.shape[0], -1])  # (batch_size, seq_length * d_model)
@@ -191,7 +338,7 @@ class TransformerBatchNormEncoderLayer(nn.modules.Module):
         src = src.permute(1, 2, 0)  # (batch_size, d_model, seq_len)
         src = self.norm2(src)
         src = src.permute(2, 0, 1)  # restore (seq_len, batch_size, d_model)
-        return src
+        return src, attn_weights
 
 
 class TSTransformerEncoder(nn.Module):
@@ -203,16 +350,17 @@ class TSTransformerEncoder(nn.Module):
         self.max_len = max_len
         self.d_model = d_model
         self.n_heads = n_heads
+        self.norm = norm
 
         self.project_inp = nn.Linear(feat_dim, d_model)
         self.pos_enc = get_pos_encoder(pos_encoding)(d_model, dropout=dropout*(1.0 - freeze), max_len=max_len)
 
-        if norm == 'LayerNorm':
-            encoder_layer = TransformerEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout*(1.0 - freeze), activation=activation)
+        if self.norm == 'LayerNorm':
+            encoder_layer = TransformerLayerNormEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout*(1.0 - freeze), activation=activation)
         else:
             encoder_layer = TransformerBatchNormEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout*(1.0 - freeze), activation=activation)
 
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+        self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
 
         self.output_layer = nn.Linear(d_model, feat_dim)
 
@@ -237,13 +385,15 @@ class TSTransformerEncoder(nn.Module):
             self.d_model)  # [seq_length, batch_size, d_model] project input vectors to d_model dimensional space
         inp = self.pos_enc(inp)  # add positional encoding
         # NOTE: logic for padding masks is reversed to comply with definition in MultiHeadAttention, TransformerEncoderLayer
-        output = self.transformer_encoder(inp, src_key_padding_mask=~padding_masks)  # (seq_length, batch_size, d_model)
+        output, attention_weights = self.transformer_encoder(inp,
+                                                             src_key_padding_mask=~padding_masks)  # (seq_length, batch_size, d_model)
         output = self.act(output)  # the output transformer encoder/decoder embeddings don't include non-linearity
         output = output.permute(1, 0, 2)  # (batch_size, seq_length, d_model)
         output = self.dropout1(output)
         # Most probably defining a Linear(d_model,feat_dim) vectorizes the operation over (seq_length, batch_size).
         output = self.output_layer(output)  # (batch_size, seq_length, feat_dim)
-
+        if attention_weights is not None:
+            output = torch.cat((output, attention_weights), dim=-1)
         return output
 
 
@@ -260,16 +410,17 @@ class TSTransformerEncoderClassiregressor(nn.Module):
         self.max_len = max_len
         self.d_model = d_model
         self.n_heads = n_heads
+        self.norm = norm
 
         self.project_inp = nn.Linear(feat_dim, d_model)
         self.pos_enc = get_pos_encoder(pos_encoding)(d_model, dropout=dropout*(1.0 - freeze), max_len=max_len)
 
-        if norm == 'LayerNorm':
-            encoder_layer = TransformerEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout*(1.0 - freeze), activation=activation)
+        if self.norm == 'LayerNorm':
+            encoder_layer = TransformerLayerNormEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout * (1.0 - freeze), activation=activation)
         else:
-            encoder_layer = TransformerBatchNormEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout*(1.0 - freeze), activation=activation)
+            encoder_layer = TransformerBatchNormEncoderLayer(d_model, self.n_heads, dim_feedforward, dropout * (1.0 - freeze), activation=activation)
 
-        self.transformer_encoder = nn.TransformerEncoder(encoder_layer, num_layers)
+        self.transformer_encoder = TransformerEncoder(encoder_layer, num_layers)
 
         self.act = _get_activation_fn(activation)
 
@@ -300,7 +451,8 @@ class TSTransformerEncoderClassiregressor(nn.Module):
             self.d_model)  # [seq_length, batch_size, d_model] project input vectors to d_model dimensional space
         inp = self.pos_enc(inp)  # add positional encoding
         # NOTE: logic for padding masks is reversed to comply with definition in MultiHeadAttention, TransformerEncoderLayer
-        output = self.transformer_encoder(inp, src_key_padding_mask=~padding_masks)  # (seq_length, batch_size, d_model)
+        output, _ = self.transformer_encoder(inp,
+                                          src_key_padding_mask=~padding_masks)  # (seq_length, batch_size, d_model)
         output = self.act(output)  # the output transformer encoder/decoder embeddings don't include non-linearity
         output = output.permute(1, 0, 2)  # (batch_size, seq_length, d_model)
         output = self.dropout1(output)
