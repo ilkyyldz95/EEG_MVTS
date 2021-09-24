@@ -16,21 +16,28 @@ import logging
 from datetime import datetime
 import os
 
-def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect_channels, output_dir, fs):
+def plot_example_windows(X, attention_weights, targets, probs, predictions, IDs, detect_channels, output_dir, fs, mean, std):
     sub_window_size = X.shape[1]
     n_channels = X.shape[2]
     print("{} channels with window size {}".format(n_channels, sub_window_size))
     T = np.arange(1, sub_window_size + 1) / fs
 
-    true_positive_idx = np.random.permutation([idx for idx in range(len(targets)) if
+    sorted_prediction_idx = np.argsort(probs)[::-1]  # sort window indices based on anomaly score
+
+    std = np.tile(std[np.newaxis, np.newaxis, :], [X.shape[0], X.shape[1], 1])
+    mean = np.tile(mean[np.newaxis, np.newaxis, :], [X.shape[0], X.shape[1], 1])
+    X = X * std + mean
+
+    true_positive_idx = ([idx for idx in sorted_prediction_idx if
                                                targets[idx] == 1 and predictions[idx] == 1])
-    false_positive_idx = np.random.permutation([idx for idx in range(len(targets)) if
+    false_positive_idx = ([idx for idx in sorted_prediction_idx if
                                                 targets[idx] == 0 and predictions[idx] == 1])
-    true_negative_idx = np.random.permutation([idx for idx in range(len(targets)) if
+    true_negative_idx = ([idx for idx in sorted_prediction_idx if
                                                targets[idx] == 0 and predictions[idx] == 0])
-    false_negative_idx = np.random.permutation([idx for idx in range(len(targets)) if
+    false_negative_idx = ([idx for idx in sorted_prediction_idx if
                                                 targets[idx] == 1 and predictions[idx] == 0])
 
+    matplotlib.rc('xtick', labelsize=6)
     matplotlib.rc('ytick', labelsize=6)
     plt.figure()
     _, axs = plt.subplots(2, 2)
@@ -48,13 +55,13 @@ def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect
         vis_idx += 1
         if vis_idx == 2:
             break
-    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False, labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[1, 1].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[0, 0].set(ylabel='$\mu V$')
     plt.savefig(os.path.join(output_dir, "true_positive.pdf"), bbox_inches='tight')
     plt.close()
 
+    matplotlib.rc('xtick', labelsize=6)
     matplotlib.rc('ytick', labelsize=6)
     plt.figure()
     _, axs = plt.subplots(2, 2)
@@ -72,17 +79,13 @@ def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect
         vis_idx += 1
         if vis_idx == 2:
             break
-    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[1, 1].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[0, 0].set(ylabel='$\mu V$')
     plt.savefig(os.path.join(output_dir, "false_positive.pdf"), bbox_inches='tight')
     plt.close()
 
+    matplotlib.rc('xtick', labelsize=6)
     matplotlib.rc('ytick', labelsize=6)
     plt.figure()
     _, axs = plt.subplots(2, 2)
@@ -100,17 +103,13 @@ def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect
         vis_idx += 1
         if vis_idx == 2:
             break
-    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[1, 1].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[0, 0].set(ylabel='$\mu V$')
     plt.savefig(os.path.join(output_dir, 'true_negative.pdf'), bbox_inches='tight')
     plt.close()
 
+    matplotlib.rc('xtick', labelsize=6)
     matplotlib.rc('ytick', labelsize=6)
     plt.figure()
     _, axs = plt.subplots(2, 2)
@@ -128,14 +127,9 @@ def plot_example_windows(X, attention_weights, targets, predictions, IDs, detect
         vis_idx += 1
         if vis_idx == 2:
             break
-    axs[1, 0].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='x', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 0].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
-    axs[1, 1].tick_params(axis='y', which='both', bottom=False, top=False,
-                          labelbottom=False)  # hide x ticks for bottom 2
+    axs[1, 0].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[1, 1].tick_params(left=False, labelleft=False, bottom=False, labelbottom=False)
+    axs[0, 0].set(ylabel='$\mu V$')
     plt.savefig(os.path.join(output_dir, 'false_negative.pdf'), bbox_inches='tight')
     plt.close()
 

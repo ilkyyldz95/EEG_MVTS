@@ -243,7 +243,7 @@ def check_progress(epoch):
 class BaseRunner(object):
 
     def __init__(self, model, dataloader, device, loss_module, feat_dim, output_dir="experiments", fs=500, subsample_factor=1,
-                 optimizer=None, l2_reg=None, print_interval=10, console=True):
+                 optimizer=None, l2_reg=None, print_interval=10, console=True, mean=None, std=None):
 
         self.model = model
         self.dataloader = dataloader
@@ -257,6 +257,8 @@ class BaseRunner(object):
         self.printer = utils.Printer(console=console)
         self.output_dir = output_dir
         self.epoch_metrics = OrderedDict()
+        self.mean = mean
+        self.std = std
 
     def train_epoch(self, epoch_num=None):
         raise NotImplementedError('Please override in child class')
@@ -458,7 +460,7 @@ class AnomalyRunner(BaseRunner):
             X, targets, padding_masks, IDs = batch
             targets = targets.numpy()
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
-            # reconstructions: (batch_size, padded_length, feat_dim + padded_length)
+            # reconstructions: (batch_size, padded_length, feat_dim)
             # attention_weights: (batch_size, padded_length, padded_length)
             predictions_attention = self.model(X.to(self.device),
                                                padding_masks)  # (batch_size, padded_length, feat_dim + padded_length)
@@ -526,8 +528,8 @@ class AnomalyRunner(BaseRunner):
 
         # plot example windows
         print("Plotting example windows")
-        analysis.plot_example_windows(X_array, attention_array, targets, predictions, IDs_array, detect_channels_array,
-                                      self.output_dir, self.fs)
+        analysis.plot_example_windows(X_array, attention_array, targets, probs, predictions, IDs_array, detect_channels_array,
+                                      self.output_dir, self.fs, self.mean.to_numpy(), self.std.to_numpy())
 
         if keep_all:
             return self.epoch_metrics, per_batch

@@ -257,7 +257,7 @@ def main(config):
 
     trainer = runner_class(model, train_loader, device, loss_module, my_data.feature_df.shape[1], optimizer=optimizer, l2_reg=output_reg, output_dir=config['output_dir'],
                                  print_interval=config['print_interval'], console=config['console'], fs=config['fs'], subsample_factor=config['subsample_factor'])
-    val_evaluator = runner_class(model, val_loader, device, loss_module, my_data.feature_df.shape[1], output_dir=config['output_dir'],
+    val_evaluator = runner_class(model, val_loader, device, loss_module, my_data.feature_df.shape[1], output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
                                        print_interval=config['print_interval'], console=config['console'], fs=config['fs'],subsample_factor=config['subsample_factor'])
 
     tensorboard_writer = SummaryWriter(config['tensorboard_dir'])
