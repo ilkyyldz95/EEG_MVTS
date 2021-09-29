@@ -90,7 +90,7 @@ def plot_example_windows(X, attention_weights, targets, probs, predictions, IDs,
     plt.figure()
     _, axs = plt.subplots(2, 2)
     vis_idx = 0
-    for window_idx in true_negative_idx:
+    for window_idx in true_negative_idx[::-1]:
         # Plot original unnormalized signal
         img = X[window_idx]
         patient_name_raw = IDs[window_idx]
@@ -114,7 +114,7 @@ def plot_example_windows(X, attention_weights, targets, probs, predictions, IDs,
     plt.figure()
     _, axs = plt.subplots(2, 2)
     vis_idx = 0
-    for window_idx in false_negative_idx:
+    for window_idx in false_negative_idx[::-1]:
         # Plot original unnormalized signal
         img = X[window_idx]
         patient_name_raw = IDs[window_idx]
