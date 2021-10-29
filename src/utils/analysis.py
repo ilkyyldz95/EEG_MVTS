@@ -570,7 +570,8 @@ class Analyzer(object):
             plt.show(block=False)
 
         # Analyze results
-        self.total_accuracy = np.trace(ConfMatrix) / len(y_true)
+        #self.total_accuracy = np.trace(ConfMatrix) / len(y_true)
+        self.total_accuracy = metrics.balanced_accuracy_score(y_true, y_pred)
         print('Overall accuracy: {:.3f}\n'.format(self.total_accuracy))
 
         # returns metrics for each class, in the same order as existing_class_names
