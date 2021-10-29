@@ -219,6 +219,7 @@ def main(config):
     else:
         raise NotImplementedError("Task '{}' not implemented".format(task))
 
+    tensorboard_writer = SummaryWriter(config['tensorboard_dir'])
     if config['test_only'] == 'testset':  # Only evaluate and skip training
         test_dataset = test_dataset_class(test_data, test_indices)
 
@@ -232,11 +233,17 @@ def main(config):
                                      output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
                                      print_interval=config['print_interval'], console=config['console'],
                                      fs=config['fs'], subsample_factor=config['subsample_factor'])
-        aggr_metrics_test, per_batch_test = test_evaluator.evaluate(keep_all=True)
-        print_str = 'Test Summary: '
-        for k, v in aggr_metrics_test.items():
-            print_str += '{}: {:8f} | '.format(k, v)
-        logger.info(print_str)
+
+        best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric
+        metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
+        best_metrics = {}
+
+        aggr_metrics_test, best_metrics, best_value = validate(test_evaluator, tensorboard_writer, config, best_metrics,
+                                                              best_value, epoch=0)
+        metrics_names, metrics_values = zip(*aggr_metrics_test.items())
+        metrics.append(list(metrics_values))
+        logger.info('Test {} was {}. Other metrics: {}'.format(config['key_metric'], best_value, best_metrics))
+        logger.info('All Done!')
         return
 
     val_dataset = val_dataset_class(val_data, val_indices)
@@ -261,8 +268,6 @@ def main(config):
                                  print_interval=config['print_interval'], console=config['console'], fs=config['fs'], subsample_factor=config['subsample_factor'])
     val_evaluator = runner_class(model, val_loader, device, loss_module, my_data.feature_df.shape[1], output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
                                        print_interval=config['print_interval'], console=config['console'], fs=config['fs'],subsample_factor=config['subsample_factor'])
-
-    tensorboard_writer = SummaryWriter(config['tensorboard_dir'])
 
     best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric
     metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...

@@ -618,8 +618,8 @@ class SupervisedRunner(BaseRunner):
             mean_loss = batch_loss / len(loss)  # mean loss (over samples)
 
             per_batch['targets'].append(targets.cpu().numpy())
-            per_batch['predictions'].append(predictions.cpu().numpy())
-            per_batch['metrics'].append([loss.cpu().numpy()])
+            per_batch['predictions'].append(predictions.detach().cpu().numpy())
+            per_batch['metrics'].append([loss.detach().cpu().numpy()])
             per_batch['IDs'].append(IDs)
 
             metrics = {"loss": mean_loss}
