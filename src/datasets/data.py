@@ -479,7 +479,7 @@ class PandasTSData(BaseData):
         return all_df, labels_df
 
     def load_single(self, data_path, label_path):
-
+        self.class_names = ["Non-seizure", "Seizure"]
         df = pd.read_pickle(data_path)
         try:
             labels_df = pd.read_pickle(label_path)

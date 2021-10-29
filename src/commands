@@ -1,0 +1,11 @@
+Unsupervised (same device for train and test)
+Training:
+python src/main.py --output_dir experiments --comment "anomaly detection" --name UPenn_anomaly --records_file UPenn_anomaly_records.xls --data_dir UPenn/ --data_class pdts --pattern train --val_ratio 0.2 --epochs 100 --lr 0.001 --optimizer RAdam  --pos_encoding learnable  --task anomaly_detection  --subsample_factor 10 --fs 500
+Testing:
+python src/main.py --output_dir experiments --comment "anomaly detection" --name UPenn_anomaly --records_file UPenn_anomaly_records.xls --data_dir UPenn/ --data_class pdts --pattern train --val_pattern test --epochs 0 --load_model experiments/UPenn_anomaly_2021-10-29_08-06-57_7D5/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam  --pos_encoding learnable  --task anomaly_detection  --subsample_factor 10 --fs 500
+
+Supervised (same device for train and test)
+Training:
+python src/main.py --output_dir experiments --comment "classification" --name UPenn_classification --records_file UPenn_classification_records.xls --data_dir UPenn/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --epochs 100 --lr 0.001 --optimizer RAdam --batch_size 128 --pos_encoding learnable --d_model 64 --task classification --change_output --subsample_factor 10 --fs 500
+Testing:
+python src/main.py --output_dir experiments --comment "classification" --name UPenn_classification --records_file UPenn_classification_records.xls --data_dir UPenn/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/UPenn_classification_2021-10-29_10-10-09_ZQR/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam --batch_size 128 --pos_encoding learnable --d_model 64 --task classification --change_output --subsample_factor 10 --fs 500

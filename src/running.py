@@ -508,9 +508,9 @@ class AnomalyRunner(BaseRunner):
         probs = probs.cpu().numpy()
         targets = np.concatenate(per_batch['targets'], axis=0).flatten()
 
-        false_pos_rate, true_pos_rate, thresholds = sklearn.metrics.roc_curve(targets, probs)  # 1D scores needed
+        false_pos_rate, true_pos_rate, _ = sklearn.metrics.roc_curve(targets, probs)  # 1D scores needed
         self.epoch_metrics['AUROC'] = sklearn.metrics.auc(false_pos_rate, true_pos_rate)
-        prec, rec, _ = sklearn.metrics.precision_recall_curve(targets, probs)
+        prec, rec, thresholds = sklearn.metrics.precision_recall_curve(targets, probs)
         self.epoch_metrics['AUPRC'] = sklearn.metrics.auc(rec, prec)
 
         # threshold by geometric mean

@@ -191,7 +191,7 @@ def main(config):
         test_collate_fn = collate_unsuperv
         val_collate_fn = collate_unsuperv
         train_collate_fn = collate_unsuperv
-    if task == "transduction":
+    elif task == "transduction":
         test_dataset_class = transduction_dataset
         val_dataset_class = transduction_dataset
         train_dataset_class = transduction_dataset
@@ -199,7 +199,7 @@ def main(config):
         test_collate_fn = collate_unsuperv
         val_collate_fn = collate_unsuperv
         train_collate_fn = collate_unsuperv
-    if (task == "classification") or (task == "regression"):
+    elif (task == "classification") or (task == "regression"):
         test_dataset_class = classiregression_dataset
         val_dataset_class = classiregression_dataset
         train_dataset_class = classiregression_dataset
@@ -207,7 +207,7 @@ def main(config):
         test_collate_fn = collate_superv
         val_collate_fn = collate_superv
         train_collate_fn = collate_superv
-    if task == "anomaly_detection":
+    elif task == "anomaly_detection":
         # unsupervised training, supervised identification
         test_dataset_class = classiregression_dataset
         val_dataset_class = classiregression_dataset
@@ -228,8 +228,10 @@ def main(config):
                                  num_workers=config['num_workers'],
                                  pin_memory=True,
                                  collate_fn=lambda x: test_collate_fn(x, max_len=model.max_len))
-        test_evaluator = runner_class(model, test_loader, device, loss_module, output_dir=config['output_dir'],
-                                            print_interval=config['print_interval'], console=config['console'])
+        test_evaluator = runner_class(model, test_loader, device, loss_module, my_data.feature_df.shape[1],
+                                     output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
+                                     print_interval=config['print_interval'], console=config['console'],
+                                     fs=config['fs'], subsample_factor=config['subsample_factor'])
         aggr_metrics_test, per_batch_test = test_evaluator.evaluate(keep_all=True)
         print_str = 'Test Summary: '
         for k, v in aggr_metrics_test.items():
