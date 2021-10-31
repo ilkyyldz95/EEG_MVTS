@@ -559,14 +559,19 @@ class SupervisedRunner(BaseRunner):
         total_samples = 0  # total samples in epoch
 
         for i, batch in enumerate(self.dataloader):
-
             X, targets, padding_masks, IDs = batch
+
+            # Weights against class imbalance
+            nSamples = np.unique(targets.numpy(), return_counts=True)[1]
+            normedWeights = [1 - (x / sum(nSamples)) for x in nSamples]
+            normedWeights = torch.FloatTensor(normedWeights).to(self.device)
+
             targets = targets.to(self.device)
             padding_masks = padding_masks.to(self.device)  # 0s: ignore
             # regression: (batch_size, num_labels); classification: (batch_size, num_classes) of logits
             predictions = self.model(X.to(self.device), padding_masks)
 
-            loss = self.loss_module(predictions, targets)  # (batch_size,) loss for each sample in the batch
+            loss = self.loss_module(predictions, targets, weight=normedWeights)  # (batch_size,) loss for each sample in the batch
             batch_loss = torch.sum(loss)
             mean_loss = batch_loss / len(loss)  # mean loss (over samples) used for optimization
 
@@ -637,22 +642,28 @@ class SupervisedRunner(BaseRunner):
         if self.classification:
             predictions = torch.from_numpy(np.concatenate(per_batch['predictions'], axis=0))
             probs = torch.nn.functional.softmax(predictions)  # (total_samples, num_classes) est. prob. for each class and sample
-            predictions = torch.argmax(probs, dim=1).cpu().numpy()  # (total_samples,) int class index for each sample
             probs = probs.cpu().numpy()
             targets = np.concatenate(per_batch['targets'], axis=0).flatten()
             class_names = np.arange(probs.shape[1])  # TODO: temporary until I decide how to pass class names
-            metrics_dict = self.analyzer.analyze_classification(predictions, targets, class_names)
-
-            self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
-            self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
-            self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
 
             if self.model.num_classes == 2:
-                false_pos_rate, true_pos_rate, _ = sklearn.metrics.roc_curve(targets, probs[:, 1])  # 1D scores needed
+                false_pos_rate, true_pos_rate, thresholds = sklearn.metrics.roc_curve(targets, probs[:, 1])  # 1D scores needed
                 self.epoch_metrics['AUROC'] = sklearn.metrics.auc(false_pos_rate, true_pos_rate)
 
                 prec, rec, _ = sklearn.metrics.precision_recall_curve(targets, probs[:, 1])
                 self.epoch_metrics['AUPRC'] = sklearn.metrics.auc(rec, prec)
+
+                gmeans = np.sqrt(true_pos_rate * (1 - false_pos_rate))
+                ix = np.argmax(gmeans)
+                print('Classification threshold=%f' % (thresholds[ix]))
+                predictions = np.array(probs[:, 1] > thresholds[ix])
+            else:
+                predictions = torch.argmax(probs, dim=1).cpu().numpy()  # (total_samples,) int class index for each sample
+
+            metrics_dict = self.analyzer.analyze_classification(predictions, targets, class_names)
+            self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
+            self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
+            self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
 
         if keep_all:
             return self.epoch_metrics, per_batch

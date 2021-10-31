@@ -34,6 +34,10 @@ from models.ts_transformer import model_factory
 from models.loss import get_loss_module
 from optimizers import get_optimizer
 
+from rocket.code.rocket_functions import generate_kernels, apply_kernels
+from sklearn.linear_model import RidgeClassifierCV
+import sklearn
+import numpy as np
 
 def main(config):
 
@@ -269,11 +273,11 @@ def main(config):
     val_evaluator = runner_class(model, val_loader, device, loss_module, my_data.feature_df.shape[1], output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
                                        print_interval=config['print_interval'], console=config['console'], fs=config['fs'],subsample_factor=config['subsample_factor'])
 
+    # Evaluate on validation before training
     best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric
     metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
     best_metrics = {}
 
-    # Evaluate on validation before training
     aggr_metrics_val, best_metrics, best_value = validate(val_evaluator, tensorboard_writer, config, best_metrics,
                                                           best_value, epoch=0)
     metrics_names, metrics_values = zip(*aggr_metrics_val.items())

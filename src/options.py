@@ -134,7 +134,7 @@ class Options(object):
                                  help='L2 weight regularization parameter')
         self.parser.add_argument('--global_reg', action='store_true',
                                  help='If set, L2 regularization will be applied to all weights instead of only the output layer')
-        self.parser.add_argument('--key_metric', choices={'loss', 'accuracy', 'precision'}, default='loss',
+        self.parser.add_argument('--key_metric', choices={'loss', 'accuracy', 'AUPRC'}, default='loss',
                                  help='Metric used for defining best epoch')
         self.parser.add_argument('--freeze', action='store_true',
                                  help='If set, freezes all layer parameters except for the output layer. Also removes dropout except before the output layer')
