@@ -467,7 +467,7 @@ class AnomalyRunner(BaseRunner):
             reconstructions = predictions_attention[:, :, :self.feat_dim]
             attention_weights = predictions_attention[:, :, self.feat_dim:]
 
-            # MAKE PREDICTIONS BY Median Absolute Error
+            # MAKE PREDICTIONS BY Absolute Error
             # predictions, detect_channels = torch.max(torch.median(torch.abs(reconstructions.cpu() - X), 1)[0], 1)
             _, detect_channels = torch.max(torch.mean(torch.abs(reconstructions.cpu() - X), 1), 1)
             predictions = torch.mean(torch.mean(torch.abs(reconstructions.cpu() - X), 1), 1)
@@ -571,7 +571,7 @@ class SupervisedRunner(BaseRunner):
             # regression: (batch_size, num_labels); classification: (batch_size, num_classes) of logits
             predictions = self.model(X.to(self.device), padding_masks)
 
-            loss = self.loss_module(predictions, targets, weight=normedWeights)  # (batch_size,) loss for each sample in the batch
+            loss = self.loss_module(predictions, targets, weight=None)  # (batch_size,) loss for each sample in the batch
             batch_loss = torch.sum(loss)
             mean_loss = batch_loss / len(loss)  # mean loss (over samples) used for optimization
 

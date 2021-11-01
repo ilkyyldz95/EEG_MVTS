@@ -184,7 +184,7 @@ def main(config):
 
     # Initialize data generators
     classiregression_dataset, imputation_dataset, transduction_dataset, collate_superv, supervised_runner, \
-    collate_unsuperv, unsupervised_runner, anomaly_runner = pipeline_factory(config)
+        collate_unsuperv, unsupervised_runner, anomaly_runner = pipeline_factory(config)
 
     task = config['task']
     if task == "imputation":
