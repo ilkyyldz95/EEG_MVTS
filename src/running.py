@@ -21,6 +21,8 @@ from utils import utils, analysis
 from models.loss import l2_reg_loss
 from datasets.dataset import ImputationDataset, TransductionDataset, ClassiregressionDataset, collate_unsuperv, collate_superv
 
+from rocket.code.rocket_functions import generate_kernels, apply_kernels
+from sklearn.linear_model import RidgeClassifierCV
 
 logger = logging.getLogger('__main__')
 
@@ -538,7 +540,6 @@ class AnomalyRunner(BaseRunner):
         else:
             return self.epoch_metrics
 
-
 class SupervisedRunner(BaseRunner):
 
     def __init__(self, *args, **kwargs):
@@ -669,3 +670,71 @@ class SupervisedRunner(BaseRunner):
             return self.epoch_metrics, per_batch
         else:
             return self.epoch_metrics
+
+class ROCKETRunner(object):
+
+    def __init__(self, train_dataloader, test_dataloader, *args, **kwargs):
+
+        super(ROCKETRunner, self).__init__(*args, **kwargs)
+        self.train_dataloader = train_dataloader
+        self.test_dataloader = test_dataloader
+        self.classifier = RidgeClassifierCV(alphas=np.logspace(-3, 3, 10), normalize = True)
+        self.analyzer = analysis.Analyzer(print_conf_mat=True)
+        self.epoch_metrics = OrderedDict()
+
+    def train(self):
+        per_batch = {'X_train': [], 'y_train': [], 'X_test': [], 'y_test': []}
+
+        for i, batch in enumerate(self.train_dataloader):
+            X, targets, padding_masks, IDs = batch
+            per_batch['X_train'].append(X.cpu().numpy())
+            per_batch['y_train'].append(targets.cpu().numpy())
+
+        for i, batch in enumerate(self.test_dataloader):
+            X, targets, padding_masks, IDs = batch
+            per_batch['X_test'].append(X.cpu().numpy())
+            per_batch['y_test'].append(targets.cpu().numpy())
+
+        X_train = np.concatenate(per_batch['X_train'], axis=0)
+        X_test = np.concatenate(per_batch['X_test'], axis=0)
+        y_train = np.concatenate(per_batch['y_train'], axis=0).flatten()
+        y_test = np.concatenate(per_batch['y_test'], axis=0).flatten()
+
+        # Take channels as univariate samples
+        y_train = np.repeat(y_train, (X_train.shape[2],))
+        y_test = np.repeat(y_test, (X_test.shape[2],))
+        X_train = np.transpose(X_train, (0, 2, 1))
+        X_test = np.transpose(X_test, (0, 2, 1))
+        X_train = np.reshape(X_train, (X_train.shape[0] * X_train.shape[1], X_train.shape[2]))
+        X_test = np.reshape(X_test, (X_test.shape[0] * X_test.shape[1], X_test.shape[2]))
+
+        # generate random kernels
+        kernels = generate_kernels(X_train.shape[-1], 500)
+        # transform training set and train classifier
+        X_training_transform = apply_kernels(X_train, kernels)
+        self.classifier.fit(X_training_transform, y_train)
+
+        # transform test set and predict
+        X_test_transform = apply_kernels(X_test, kernels)
+        probs = np.squeeze(np.dot(X_test_transform, self.classifier.coef_.T), -1)
+        probs = torch.nn.functional.sigmoid(torch.Tensor(probs)).numpy()
+        predictions = self.classifier.predict(X_test_transform)
+
+        if len(np.unique(y_test)) == 2:
+            false_pos_rate, true_pos_rate, thresholds = sklearn.metrics.roc_curve(y_test, probs)  # 1D scores needed
+            self.epoch_metrics['AUROC'] = sklearn.metrics.auc(false_pos_rate, true_pos_rate)
+
+            prec, rec, _ = sklearn.metrics.precision_recall_curve(y_test, probs)
+            self.epoch_metrics['AUPRC'] = sklearn.metrics.auc(rec, prec)
+
+            gmeans = np.sqrt(true_pos_rate * (1 - false_pos_rate))
+            ix = np.argmax(gmeans)
+            print('Classification threshold=%f' % (thresholds[ix]))
+            predictions = np.array(probs > thresholds[ix])
+
+        metrics_dict = self.analyzer.analyze_classification(predictions, y_test, np.unique(y_test))
+        self.epoch_metrics['accuracy'] = metrics_dict['total_accuracy']  # same as average recall over all classes
+        self.epoch_metrics['precision'] = metrics_dict['prec_avg']  # average precision over all classes
+        self.epoch_metrics['recall'] = metrics_dict['rec_avg']  # average recall over all classes
+
+        return self.epoch_metrics

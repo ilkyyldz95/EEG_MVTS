@@ -26,18 +26,13 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Project modules
 from options import Options
-from running import setup, pipeline_factory, validate, check_progress, NEG_METRICS
+from running import setup, pipeline_factory, validate, check_progress, NEG_METRICS, ROCKETRunner
 from utils import utils
 from datasets.data import data_factory, Normalizer
 from datasets.datasplit import split_dataset
 from models.ts_transformer import model_factory
 from models.loss import get_loss_module
 from optimizers import get_optimizer
-
-from rocket.code.rocket_functions import generate_kernels, apply_kernels
-from sklearn.linear_model import RidgeClassifierCV
-import sklearn
-import numpy as np
 
 def main(config):
 
@@ -224,31 +219,6 @@ def main(config):
         raise NotImplementedError("Task '{}' not implemented".format(task))
 
     tensorboard_writer = SummaryWriter(config['tensorboard_dir'])
-    if config['test_only'] == 'testset':  # Only evaluate and skip training
-        test_dataset = test_dataset_class(test_data, test_indices)
-
-        test_loader = DataLoader(dataset=test_dataset,
-                                 batch_size=config['batch_size'],
-                                 shuffle=False,
-                                 num_workers=config['num_workers'],
-                                 pin_memory=True,
-                                 collate_fn=lambda x: test_collate_fn(x, max_len=model.max_len))
-        test_evaluator = runner_class(model, test_loader, device, loss_module, my_data.feature_df.shape[1],
-                                     output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
-                                     print_interval=config['print_interval'], console=config['console'],
-                                     fs=config['fs'], subsample_factor=config['subsample_factor'])
-
-        best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric
-        metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
-        best_metrics = {}
-
-        aggr_metrics_test, best_metrics, best_value = validate(test_evaluator, tensorboard_writer, config, best_metrics,
-                                                              best_value, epoch=0)
-        metrics_names, metrics_values = zip(*aggr_metrics_test.items())
-        metrics.append(list(metrics_values))
-        logger.info('Test {} was {}. Other metrics: {}'.format(config['key_metric'], best_value, best_metrics))
-        logger.info('All Done!')
-        return
 
     val_dataset = val_dataset_class(val_data, val_indices)
 
@@ -272,6 +242,43 @@ def main(config):
                                  print_interval=config['print_interval'], console=config['console'], fs=config['fs'], subsample_factor=config['subsample_factor'])
     val_evaluator = runner_class(model, val_loader, device, loss_module, my_data.feature_df.shape[1], output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
                                        print_interval=config['print_interval'], console=config['console'], fs=config['fs'],subsample_factor=config['subsample_factor'])
+
+    if config['test_only'] == 'testset':  # Only evaluate and skip training
+        test_dataset = test_dataset_class(test_data, test_indices)
+
+        test_loader = DataLoader(dataset=test_dataset,
+                                 batch_size=config['batch_size'],
+                                 shuffle=False,
+                                 num_workers=config['num_workers'],
+                                 pin_memory=True,
+                                 collate_fn=lambda x: test_collate_fn(x, max_len=model.max_len))
+        test_evaluator = runner_class(model, test_loader, device, loss_module, my_data.feature_df.shape[1],
+                                     output_dir=config['output_dir'], mean=normalizer.mean, std=normalizer.std,
+                                     print_interval=config['print_interval'], console=config['console'],
+                                     fs=config['fs'], subsample_factor=config['subsample_factor'])
+
+        best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric
+        metrics = []  # (for validation) list of lists: for each epoch, stores metrics like loss, ...
+        best_metrics = {}
+
+        aggr_metrics_test, best_metrics, best_value = validate(test_evaluator, tensorboard_writer, config, best_metrics,
+                                                              best_value, epoch=0)
+        metrics_names, metrics_values = zip(*aggr_metrics_test.items())
+        metrics.append(list(metrics_values))
+        logger.info('Test {} was {}. Other metrics: {}'.format(config['key_metric'], best_value, best_metrics))
+
+        # Test ROCKET for classification
+        if (task == "classification"):
+            rocket_runner = ROCKETRunner(train_loader, test_loader)
+            aggr_metrics = rocket_runner.train()  # dictionary of aggregate epoch metrics
+            print()
+            print_str = 'ROCKET Summary: \t'
+            for k, v in aggr_metrics.items():
+                print_str += '{}: {:8f} | '.format(k, v)
+            logger.info(print_str)
+            print()
+        logger.info('All Done!')
+        return
 
     # Evaluate on validation before training
     best_value = 1e16 if config['key_metric'] in NEG_METRICS else -1e16  # initialize with +inf or -inf depending on key metric

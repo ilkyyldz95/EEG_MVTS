@@ -1,6 +1,6 @@
 # EEG_MVTS
 
-This code corresponds to the [paper](https://dl.acm.org/doi/10.1145/3447548.3467401): George Zerveas et al. **A Transformer-based Framework for Multivariate Time Series Representation Learning**, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_.
+This code is for an extension of the [paper](https://dl.acm.org/doi/10.1145/3447548.3467401): George Zerveas et al. **A Transformer-based Framework for Multivariate Time Series Representation Learning**, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_ for anomaly detection.
 ArXiV version: https://arxiv.org/abs/2010.02803
 
 If you find this code or any of the ideas in the paper useful, please consider citing:
@@ -38,6 +38,8 @@ The following commands assume that you have created a new root directory inside 
 install packages and avoid conficting package requirements; otherwise, to run `pip`, the flag `--user` or `sudo` privileges will be necessary.]
 
 `pip install -r requirements.txt`
+or
+`conda env create -f mvts_transformer.yml`.
 
 Download dataset files and place them in separate directories, one for regression and one for classification.
 
