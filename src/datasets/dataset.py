@@ -1,7 +1,7 @@
 import numpy as np
 from torch.utils.data import Dataset
 import torch
-
+from tsaug import Reverse, Drift
 
 class ImputationDataset(Dataset):
     """Dynamically computes missingness (noise) mask for each sample"""
@@ -83,7 +83,7 @@ class TransductionDataset(Dataset):
         return len(self.IDs)
 
 
-def collate_superv(data, max_len=None):
+def collate_superv(data, max_len=None, task=None):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, y).
@@ -116,6 +116,32 @@ def collate_superv(data, max_len=None):
 
     padding_masks = padding_mask(torch.tensor(lengths, dtype=torch.int16),
                                  max_len=max_len)  # (batch_size, padded_length) boolean tensor, "1" means keep
+
+    if task == "classification":
+        unique_labels, label_counts = np.unique(targets.numpy(), return_counts=True)
+        if len(unique_labels) > 1:
+            smallest_class_label = unique_labels[np.argmin(label_counts)]
+            largest_class_label = unique_labels[np.argmax(label_counts)]
+            #print("Smallest class label is {} with count {}".format(smallest_class_label, np.min(label_counts)))
+            #print("Largest class label is {} with count {}".format(largest_class_label, np.max(label_counts)))
+            replicate_factor = int(np.max(label_counts) / np.min(label_counts))
+            if replicate_factor > 1:
+                print("Oversampling small class")
+                smallest_class_train_indices = [idx for idx in range(len(targets)) if float(targets[idx]) == smallest_class_label]
+                #print("Initial count for smallest class is {}".format(len(smallest_class_train_indices)))
+                # Oversample the smallest class
+                smallest_class_X = np.tile(X.numpy()[smallest_class_train_indices], (replicate_factor, 1, 1))
+                #print("Oversampled count for smallest class is {}".format(len(smallest_class_X)))
+                # Augment the smallest class
+                my_augmenter = (Reverse()
+                                + Drift(max_drift=(0.1, 0.5)) @ 0.8)  # with 80% probability, random drift the signal up to 10% - 50%
+                smallest_class_X_aug = my_augmenter.augment(smallest_class_X)
+                #print("Augmented count for smallest class is {}".format(len(smallest_class_X_aug)))
+                X = torch.cat([X, torch.Tensor(smallest_class_X_aug)])
+                targets = torch.cat([targets, targets[smallest_class_train_indices].repeat((replicate_factor, 1))])
+                padding_masks = torch.cat([padding_masks, padding_masks[smallest_class_train_indices].repeat((replicate_factor, 1))])
+                IDs += tuple(np.arange(len(targets), len(targets) + len(smallest_class_X_aug)))
+                #print(X.shape, targets.shape, padding_masks.shape, len(IDs))
 
     return X, targets, padding_masks, IDs
 
@@ -190,7 +216,7 @@ def compensate_masking(X, mask):
     return X.shape[-1] * X / num_active
 
 
-def collate_unsuperv(data, max_len=None, mask_compensation=False):
+def collate_unsuperv(data, max_len=None, mask_compensation=False, task=None):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, mask).

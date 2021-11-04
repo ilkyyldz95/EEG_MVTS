@@ -236,7 +236,7 @@ def main(config):
                               shuffle=True,
                               num_workers=config['num_workers'],
                               pin_memory=True,
-                              collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len))
+                              collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len, task=task))
 
     trainer = runner_class(model, train_loader, device, loss_module, my_data.feature_df.shape[1], optimizer=optimizer, l2_reg=output_reg, output_dir=config['output_dir'],
                                  print_interval=config['print_interval'], console=config['console'], fs=config['fs'], subsample_factor=config['subsample_factor'])
