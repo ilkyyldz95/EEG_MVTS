@@ -1,5 +1,5 @@
 """
-Written by George Zerveas
+Written by George Zerveas and Ilkay Yildiz
 
 If you use any part of the code in this repository, please consider citing the following paper:
 George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning, in
@@ -26,7 +26,7 @@ from torch.utils.tensorboard import SummaryWriter
 
 # Project modules
 from options import Options
-from running import setup, pipeline_factory, validate, check_progress, NEG_METRICS, ROCKETRunner
+from running import setup, pipeline_factory, validate, check_progress, NEG_METRICS, ShallowSupervisedRunner
 from utils import utils
 from datasets.data import data_factory, Normalizer
 from datasets.datasplit import split_dataset
@@ -236,7 +236,7 @@ def main(config):
                               shuffle=True,
                               num_workers=config['num_workers'],
                               pin_memory=True,
-                              collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len, task=task))
+                              collate_fn=lambda x: train_collate_fn(x, max_len=model.max_len, task=task, oversample=config["oversample"]))
 
     trainer = runner_class(model, train_loader, device, loss_module, my_data.feature_df.shape[1], optimizer=optimizer, l2_reg=output_reg, output_dir=config['output_dir'],
                                  print_interval=config['print_interval'], console=config['console'], fs=config['fs'], subsample_factor=config['subsample_factor'])
@@ -267,12 +267,19 @@ def main(config):
         metrics.append(list(metrics_values))
         logger.info('Test {} was {}. Other metrics: {}'.format(config['key_metric'], best_value, best_metrics))
 
-        # Test ROCKET for classification
+        # Test ROCKET and XGBoost for classification
         if (task == "classification"):
-            rocket_runner = ROCKETRunner(train_loader, test_loader)
-            aggr_metrics = rocket_runner.train()  # dictionary of aggregate epoch metrics
+            shallow_supervised_runner = ShallowSupervisedRunner(train_loader, val_loader, test_loader)
+
+            aggr_metrics = shallow_supervised_runner.train_xgboost()  # dictionary of aggregate epoch metrics
+            print_str = '\n XGBoost Summary: \t'
+            for k, v in aggr_metrics.items():
+                print_str += '{}: {:8f} | '.format(k, v)
+            logger.info(print_str)
             print()
-            print_str = 'ROCKET Summary: \t'
+
+            aggr_metrics = shallow_supervised_runner.train_rocket()  # dictionary of aggregate epoch metrics
+            print_str = '\n ROCKET Summary: \t'
             for k, v in aggr_metrics.items():
                 print_str += '{}: {:8f} | '.format(k, v)
             logger.info(print_str)

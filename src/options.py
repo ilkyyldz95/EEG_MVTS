@@ -56,6 +56,8 @@ class Options(object):
                                  help='If set, no training will take place; instead, trained model will be loaded and evaluated on test set')
         self.parser.add_argument('--data_class', type=str, default='weld',
                                  help="Which type of data should be processed.")
+        self.parser.add_argument('--oversample', action='store_true',
+                                 help='Oversamples the minority class for classification training')
         self.parser.add_argument('--labels', type=str,
                                  help="In case a dataset contains several labels (multi-task), "
                                       "which type of labels should be used in regression or classification, i.e. name of column(s).")

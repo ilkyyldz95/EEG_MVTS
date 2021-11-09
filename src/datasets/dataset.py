@@ -83,7 +83,7 @@ class TransductionDataset(Dataset):
         return len(self.IDs)
 
 
-def collate_superv(data, max_len=None, task=None):
+def collate_superv(data, max_len=None, task=None, oversample=False):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, y).
@@ -117,7 +117,7 @@ def collate_superv(data, max_len=None, task=None):
     padding_masks = padding_mask(torch.tensor(lengths, dtype=torch.int16),
                                  max_len=max_len)  # (batch_size, padded_length) boolean tensor, "1" means keep
 
-    if task == "classification":
+    if task == "classification" and oversample:
         unique_labels, label_counts = np.unique(targets.numpy(), return_counts=True)
         if len(unique_labels) > 1:
             smallest_class_label = unique_labels[np.argmin(label_counts)]
@@ -216,7 +216,7 @@ def compensate_masking(X, mask):
     return X.shape[-1] * X / num_active
 
 
-def collate_unsuperv(data, max_len=None, mask_compensation=False, task=None):
+def collate_unsuperv(data, max_len=None, mask_compensation=False, task=None, oversample=False):
     """Build mini-batch tensors from a list of (X, mask) tuples. Mask input. Create
     Args:
         data: len(batch_size) list of tuples (X, mask).
