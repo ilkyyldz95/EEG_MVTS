@@ -3,6 +3,7 @@ experiments/*
 SpokenArabicDigits/*
 UPenn/*
 MIT/*
+TUH/*
 src/rocket/*
 
 # Env and package

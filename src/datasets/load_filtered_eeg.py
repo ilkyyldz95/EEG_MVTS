@@ -10,12 +10,12 @@ import pandas as pd
 """
 modality = "MIT/mit"
 fs = 256.0
-img_size = 58368  # 58368 maximum to cover the shortest activity of 6 secs
+img_size = 58368  # to cover the shortest activity of 6 secs
 n_channels = 38
 sub_window_size = int(img_size / n_channels)  # sub_window_size / fs second window
 downsample_factor = 2
 print("{} channels with window size {}".format(n_channels, sub_window_size))
-"""
+
 modality = "UPenn/upenn_extended"
 fs = 500.0
 img_size = 36000  # to cover shortest activity of 1 s
@@ -23,7 +23,14 @@ n_channels = 72
 sub_window_size = int(img_size / n_channels)  # sub_window_size / fs second window
 downsample_factor = 2
 print("{} channels with window size {}".format(n_channels, sub_window_size))
-
+"""
+modality = "TUH/tuh"
+fs = 250.0
+img_size = 17590  # to cover shortest activity of 1.85 s
+n_channels = 38
+sub_window_size = int(img_size / n_channels)  # sub_window_size / fs second window
+downsample_factor = 2
+print("{} channels with window size {}".format(n_channels, sub_window_size))
 
 def extract_windows_vectorized(array, sub_window_size, downsample_factor, overlap_factor=0.5):
     # create sliding windows of size sub_window_size, downsampling by downsample_factor, and overlapping by overlap_factor percent
@@ -99,6 +106,9 @@ for idx in range(len(test_seizure_eegs)):
 print("{} seizure eegs are cleaned".format(count))
 test_seizure_prep_eegs, test_seizure_files = \
     apply_sliding_window(test_seizure_files_cleaned, test_seizure_eegs_cleaned)
+
+print("=> Training windows", len(train_files))
+print("=> Seizure windows", len(test_seizure_files))
 
 # DATAFRAME FOR SUPERVISED LEARNING
 # Concatenate positive and negative test samples
