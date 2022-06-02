@@ -316,6 +316,7 @@ class TSRegressionArchive(BaseData):
                 limit_size = int(limit_size * len(self.all_IDs))
             self.all_IDs = self.all_IDs[:limit_size]
             self.all_df = self.all_df.loc[self.all_IDs]
+            self.labels_df = self.labels_df.loc[self.all_IDs]
 
         # use all features
         self.feature_names = self.all_df.columns
@@ -437,7 +438,8 @@ class PandasTSData(BaseData):
                 limit_size = int(limit_size * len(self.all_IDs))
             self.all_IDs = self.all_IDs[:limit_size]
             self.all_df = self.all_df.loc[self.all_IDs]
-
+            self.labels_df = self.labels_df.loc[self.all_IDs]
+            
         # use all features
         self.feature_names = self.all_df.columns
         self.feature_df = self.all_df
