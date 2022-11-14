@@ -56,21 +56,21 @@ python src/main.py --output_dir experiments --comment "anomaly detection" --name
 ### Training:
 ```bash
 python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_augmented --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --oversample --epochs 100 --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
-```bash
+```
 
 ### Testing:
 ```bash
 python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_augmented --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/TUH_classification_AUPRC_augmented_2021-11-18_12-23-31_c0Y/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
-```bash
+```
 
 ## Pre-trained Supervised Learning Baseline
 
 ### Training:
 ```bash
 python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_finetuned --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --oversample --load_model experiments/TUH_anomaly_.../checkpoints/model_best.pth --epochs 100 --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
-```bash
+```
 
 ### Testing:
 ```bash
 python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_finetuned --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/TUH_classification_AUPRC_finetuned_2021-11-17_07-22-21_1YB/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
-```bash
+```
