@@ -1,33 +1,16 @@
 # EEG_MVTS
 
-This code is for an extension of the [paper](https://dl.acm.org/doi/10.1145/3447548.3467401): George Zerveas et al. **A Transformer-based Framework for Multivariate Time Series Representation Learning**, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_ for anomaly detection.
-ArXiV version: https://arxiv.org/abs/2010.02803
-
-If you find this code or any of the ideas in the paper useful, please consider citing:
-```buildoutcfg
-@inproceedings{10.1145/3447548.3467401,
-author = {Zerveas, George and Jayaraman, Srideepika and Patel, Dhaval and Bhamidipaty, Anuradha and Eickhoff, Carsten},
-title = {A Transformer-Based Framework for Multivariate Time Series Representation Learning},
-year = {2021},
-isbn = {9781450383325},
-publisher = {Association for Computing Machinery},
-address = {New York, NY, USA},
-url = {https://doi.org/10.1145/3447548.3467401},
-doi = {10.1145/3447548.3467401},
-booktitle = {Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery &amp; Data Mining},
-pages = {2114–2124},
-numpages = {11},
-keywords = {regression, framework, multivariate time series, classification, transformer, deep learning, self-supervised learning, unsupervised learning, imputation},
-location = {Virtual Event, Singapore},
-series = {KDD '21}
-}
+This code implements the accepted manuscript:
 ```
+I. Yıldız Potter, G. Zerveas, C. Eickhoff, D. Duncan, “Unsupervised Multivariate Time-Series Transformers for Seizure Identification on EEG”, IEEE Conference on Machine Learning and Applications (ICMLA), 2022
+```
+and extends George Zerveas et al. **A Transformer-based Framework for Multivariate Time Series Representation Learning**, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_ for anomaly detection.
 
-## Setup
+# Setup
 
 _Instructions refer to Unix-based systems (e.g. Linux, MacOS)._
 
-`cd mvts_transformer/`
+`cd EEG_MVTS/`
 
 Inside an already *existing* root directory, each experiment will create a time-stamped output directory, which contains
 model checkpoints, performance metrics per epoch, predictions per sample, the experiment configuration, log files etc.
@@ -41,64 +24,53 @@ install packages and avoid conficting package requirements; otherwise, to run `p
 or
 `conda env create -f mvts_transformer.yml`.
 
-Download dataset files and place them in separate directories, one for regression and one for classification.
+# Datasets
 
-Classification: http://www.timeseriesclassification.com/Downloads/Archives/Multivariate2018_ts.zip
+Dataset sources can be found in the manuscript. Preprocess each dataset into training, validation and test partitions by running `data\load_filtered_eeg.py`.
 
-Regression: https://zenodo.org/record/3902651#.YB5P0OpOm3s
-
-## Example commands
+# Example commands
 
 To see all command options with explanations, run: `python src/main.py --help`
 
-You should replace `$1` below with the name of the desired dataset.
-The commands shown here specify configurations intended for `BeijingPM25Quality` for regression and `SpokenArabicDigits` for classification.
-
-_[To obtain best performance for other datasets, use the hyperparameters as given in the Supplementary Material of the paper.
-Appropriate downsampling with the option `--subsample_factor` can be often used on datasets with longer time series to speedup training, without significant
-performance degradation.]_
-
-The configurations as shown below will evaluate the model on the TEST set periodically during training, and at the end of training.
+You should replace `TUH` below with the name of the desired dataset.
 
 Besides the console output  and the logfile `output.log`, you can monitor the evolution of performance (after installing tensorboard: `pip install tensorboard`) with:
 ```bash
 tensorboard dev upload --name my_exp --logdir path/to/output_dir
 ```
 
-## Train models from scratch
+## Unsupervised Learning via the Proposed Method
 
-
-### Regression
-
-(Note: the loss reported for regression is the Mean Square Error, i.e. without the Root)
-
+### Training:
 ```bash
-python src/main.py --output_dir path/to/experiments --comment "regression from Scratch" --name $1_fromScratch_Regression --records_file Regression_records.xls --data_dir path/to/Datasets/Regression/$1/ --data_class tsra --pattern TRAIN --val_pattern TEST --epochs 100 --lr 0.001 --optimizer RAdam  --pos_encoding learnable --task regression
+python src/main.py --output_dir experiments --comment "anomaly detection" --name TUH_anomaly --records_file TUH_anomaly_records.xls --data_dir TUH/ --data_class pdts --pattern train --val_ratio 0.2 --epochs 100 --lr 0.001 --optimizer RAdam  --pos_encoding learnable  --task anomaly_detection  --subsample_factor 10 --fs 250
 ```
 
-### Classification
-
+### Testing:
 ```bash
-python src/main.py --output_dir experiments --comment "classification from Scratch" --name $1_fromScratch --records_file Classification_records.xls --data_dir path/to/Datasets/Classification/$1/ --data_class tsra --pattern TRAIN --val_pattern TEST --epochs 400 --lr 0.001 --optimizer RAdam  --pos_encoding learnable  --task classification  --key_metric accuracy
+python src/main.py --output_dir experiments --comment "anomaly detection" --name TUH_anomaly_evenTest --records_file TUH_anomaly_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/TUH_anomaly_2021-11-19_14-07-16_hPt/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam  --pos_encoding learnable  --task anomaly_detection  --subsample_factor 10 --fs 250
 ```
 
-## Pre-train models (unsupervised learning through input masking)
+## Supervised Learning Baseline
 
-Can be used for any downstream task, e.g. regression, classification, imputation.
+### Training:
 ```bash
-python src/main.py --output_dir experiments --comment "pretraining through imputation" --name $1_pretrained --records_file Imputation_records.xls --data_dir /path/to/$1/ --data_class tsra --pattern TRAIN --val_ratio 0.2 --epochs 700 --lr 0.001 --optimizer RAdam --batch_size 32 --pos_encoding learnable --d_model 128
-```
-
-## Fine-tune pretrained models
-
-Make sure that network architecture parameters (e.g. `d_model`) used to fine-tune a model match the pretrained model.
-
-### Regression
+python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_augmented --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --oversample --epochs 100 --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
 ```bash
-python src/main.py --output_dir experiments --comment "finetune for regression" --name BeijingPM25Quality_finetuned --records_file Regression_records.xls --data_dir /path/to/Datasets/Regression/BeijingPM25Quality/ --data_class tsra --pattern TRAIN --val_pattern TEST  --epochs 200 --lr 0.001 --optimizer RAdam --pos_encoding learnable --d_model 128 --load_model path/to/BeijingPM25Quality_pretrained/checkpoints/model_best.pth --task regression --change_output --batch_size 128
-```
 
-### Classification
+### Testing:
 ```bash
-python src/main.py --output_dir experiments --comment "finetune for classification" --name SpokenArabicDigits_finetuned --records_file Classification_records.xls --data_dir /path/to/Datasets/Classification/SpokenArabicDigits/ --data_class tsra --pattern TRAIN --val_pattern TEST --epochs 100 --lr 0.001 --optimizer RAdam --batch_size 128 --pos_encoding learnable --d_model 64 --load_model path/to/SpokenArabicDigits_pretrained/checkpoints/model_best.pth --task classification --change_output --key_metric accuracy
-```
+python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_augmented --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/TUH_classification_AUPRC_augmented_2021-11-18_12-23-31_c0Y/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
+```bash
+
+## Pre-trained Supervised Learning Baseline
+
+### Training:
+```bash
+python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_finetuned --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --oversample --load_model experiments/TUH_anomaly_.../checkpoints/model_best.pth --epochs 100 --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
+```bash
+
+### Testing:
+```bash
+python src/main.py --output_dir experiments --comment "classification" --name TUH_classification_AUPRC_finetuned --records_file TUH_classification_records.xls --data_dir TUH/ --data_class pdts --pattern all --val_ratio 0.2 --test_ratio 0.2 --test_only testset --load_model experiments/TUH_classification_AUPRC_finetuned_2021-11-17_07-22-21_1YB/checkpoints/model_best.pth --lr 0.001 --optimizer RAdam --pos_encoding learnable --task classification --change_output --subsample_factor 10 --fs 250 --key_metric AUPRC
+```bash
