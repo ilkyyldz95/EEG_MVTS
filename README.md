@@ -4,7 +4,7 @@ This code implements the accepted manuscript:
 ```
 I. Yıldız Potter, G. Zerveas, C. Eickhoff, D. Duncan, “Unsupervised Multivariate Time-Series Transformers for Seizure Identification on EEG”, IEEE Conference on Machine Learning and Applications (ICMLA), 2022
 ```
-and extends George Zerveas et al. **A Transformer-based Framework for Multivariate Time Series Representation Learning**, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_ for anomaly detection.
+and extends the codebase of George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_.
 
 # Setup
 
