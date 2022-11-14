@@ -6,6 +6,8 @@ I. Yıldız Potter, G. Zerveas, C. Eickhoff, D. Duncan, “Unsupervised Multivar
 ```
 and extends the codebase of George Zerveas et al. A Transformer-based Framework for Multivariate Time Series Representation Learning, in _Proceedings of the 27th ACM SIGKDD Conference on Knowledge Discovery and Data Mining (KDD '21), August 14-18, 2021_.
 
+When using this code, please cite Yıldız Potter et al.
+
 # Setup
 
 _Instructions refer to Unix-based systems (e.g. Linux, MacOS)._
