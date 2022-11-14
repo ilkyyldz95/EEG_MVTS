@@ -26,7 +26,7 @@ or
 
 # Datasets
 
-Dataset sources can be found in the manuscript. Preprocess each dataset into training, validation and test partitions by running `data\load_filtered_eeg.py`.
+Dataset sources can be found in the manuscript. Preprocess each dataset into training, validation and test partitions by running `src\datasets\load_filtered_eeg.py`.
 
 # Example commands
 
