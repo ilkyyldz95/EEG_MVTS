@@ -1,6 +1,6 @@
 # EEG_MVTS
 
-This code implements the accepted manuscript:
+This code implements the following work (with a best paper award):
 ```
 I. Yıldız Potter, G. Zerveas, C. Eickhoff, D. Duncan, “Unsupervised Multivariate Time-Series Transformers for Seizure Identification on EEG”, IEEE Conference on Machine Learning and Applications (ICMLA), 2022
 ```
