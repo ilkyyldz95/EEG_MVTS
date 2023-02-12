@@ -28,7 +28,11 @@ or
 
 # Datasets
 
-Dataset sources can be found in the manuscript. Preprocess each dataset into training, validation and test partitions by running `src\datasets\load_filtered_eeg.py`.
+Dataset sources can be found in the manuscript. 
+
+Preprocess each dataset following our previous work at `https://github.com/ilkyyldz95/EEG_VAE`. `read_eeg_xxx` files perform preprocessing for each dataset `xxx` out of MIT, UPenn and TUH.
+
+Then, create training, validation and test partitions in the correct pandas data frame format by running `src\datasets\load_filtered_eeg.py`.
 
 # Example commands
 
